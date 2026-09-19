@@ -72,6 +72,7 @@ const result = await syncYoutubeVods({
   channels,
   checkpoints: state.checkpoints,
   knownIds: new Set(byId.keys()),
+  recentOnly: hasFlag('--recent'),
   onProgress: (progress) => console.log(`[${progress.channel}] ${progress.message}`),
   onMatches: async (matches) => {
     for (const match of matches) byId.set(match.id, match)

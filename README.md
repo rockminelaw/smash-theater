@@ -65,6 +65,19 @@ npm run scrub
 
 Then refresh the site. Smash Theater loads `public/archive.json` automatically.
 
+## Automatic daily scrape
+
+GitHub Actions can check for new VODs every 24 hours and commit them to the repo. If the site is hosted on Netlify or Vercel, that push rebuilds the live site.
+
+1. Open [github.com/rockminelaw/smash-theater/settings/secrets/actions](https://github.com/rockminelaw/smash-theater/settings/secrets/actions).
+2. New repository secret named `YOUTUBE_API_KEY`, value = your YouTube Data API key.
+3. Restrict that key in Google Cloud to **YouTube Data API v3** only. Do **not** add HTTP referrer or IP restrictions; GitHub Actions IPs change.
+4. Open the **Actions** tab, choose **Scrape new VODs**, and run it once with **Run workflow** to confirm it works.
+
+After that it runs every day at 06:00 UTC with no further input. You can still run it by hand from the same Actions page.
+
+The job only scans recent uploads (`npm run scrape -- --recent`). It does not re-download the whole archive.
+
 Channels included: VGBootCamp, Beyond the Summit - Smash, 2GGaming, ClubSmashTV, CLASH, まえだくん (Maesuma), and Tamisuma.jp.
 
 The scrape only stores titles and YouTube links. It does not download videos. Stages and winners are blank unless the title contains that info.

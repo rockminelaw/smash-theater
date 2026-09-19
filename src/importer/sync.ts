@@ -32,6 +32,7 @@ export type SyncOptions = {
   channels?: VodChannel[]
   checkpoints?: Record<string, ChannelCheckpoint>
   knownIds?: Set<string>
+  recentOnly?: boolean
   onProgress?: (progress: SyncProgress) => void
   onMatches?: (matches: Match[]) => void | Promise<void>
   onCheckpoint?: (channel: string, checkpoint: ChannelCheckpoint) => void | Promise<void>
@@ -67,7 +68,7 @@ export async function syncYoutubeVods(options: SyncOptions) {
 
   for (const channel of channels) {
     const existing = options.checkpoints?.[channel.name]
-    const catchUp = Boolean(existing?.done)
+    const catchUp = Boolean(existing?.done) || Boolean(options.recentOnly)
 
     try {
       options.onProgress?.({ channel: channel.name, message: catchUp ? 'Checking for new uploads…' : 'Resolving channel…' })
