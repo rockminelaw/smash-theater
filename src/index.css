@@ -135,6 +135,10 @@ a {
   min-width: 160px;
 }
 
+.field > label {
+  display: contents;
+}
+
 .field span {
   color: var(--muted);
   font-size: 0.78rem;
@@ -297,6 +301,22 @@ a {
   list-style: none;
   background: #2b2b32;
   border: 1px solid var(--line);
+  border-radius: 8px;
+  max-height: min(320px, 50vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #8d8d98 transparent;
+}
+
+.suggest-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.suggest-list::-webkit-scrollbar-thumb {
+  background: #8d8d98;
   border-radius: 8px;
 }
 

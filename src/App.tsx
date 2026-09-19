@@ -32,7 +32,10 @@ function writeFilters(filters: MatchFilters) {
   if (filters.stage) params.set('stage', filters.stage)
   if (filters.tag) params.set('tag', filters.tag)
   const query = params.toString()
-  window.location.hash = query ? `/?${query}` : '/'
+  const next = query ? `#/?${query}` : '#/'
+  if (window.location.hash !== next) {
+    history.replaceState(null, '', next)
+  }
 }
 
 export default function App() {

@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "scrape": "tsx scripts/scrape-vods.ts",
+    "enrich": "tsx scripts/scrape-vods.ts --enrich",
+    "startgg": "tsx scripts/startgg-enrich.ts",
     "scrub": "tsx scripts/scrub-archive.ts",
     "approve-tip": "tsx scripts/approve-tip.ts"
   },

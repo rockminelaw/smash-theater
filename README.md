@@ -59,6 +59,12 @@ npm run scrape -- --key YOUR_API_KEY --channel Tamisuma
 # After the archive exists, only check the last 3 days
 npm run scrape -- --key YOUR_API_KEY --recent
 
+# Pull scores/stages from existing VOD titles and descriptions
+npm run enrich -- --key YOUR_API_KEY
+
+# Pull scores/stages from start.gg when the TO reported games
+npm run startgg -- --token YOUR_STARTGG_TOKEN
+
 # Drop any leftover non-Ultimate / unknown-character rows
 npm run scrub
 ```
@@ -71,12 +77,13 @@ GitHub Actions can check for new VODs every 24 hours and commit them to the repo
 
 1. Open [github.com/rockminelaw/smash-theater/settings/secrets/actions](https://github.com/rockminelaw/smash-theater/settings/secrets/actions).
 2. New repository secret named `YOUTUBE_API_KEY`, value = your YouTube Data API key.
-3. Restrict that key in Google Cloud to **YouTube Data API v3** only. Do **not** add HTTP referrer or IP restrictions; GitHub Actions IPs change.
-4. Open the **Actions** tab, choose **Scrape new VODs**, and run it once with **Run workflow** to confirm it works.
+3. Optional: another secret named `STARTGG_TOKEN`, value = a [start.gg API token](https://developer.start.gg/docs/authentication).
+4. Restrict the YouTube key in Google Cloud to **YouTube Data API v3** only. Do **not** add HTTP referrer or IP restrictions; GitHub Actions IPs change.
+5. Open the **Actions** tab, choose **Scrape new VODs**, and run it once with **Run workflow** to confirm it works. To fill scores for the existing archive, check **Backfill scores and stages from start.gg for the whole archive**. That can take hours; run it again if it stops, and it will skip names it already checked.
 
 After that it runs every day at 06:00 UTC with no further input. You can still run it by hand from the same Actions page.
 
-The job only looks at uploads from the last 3 days (`npm run scrape -- --recent`). Already-archived VODs are skipped, and it stops as soon as it hits older videos.
+The job only looks at uploads from the last 3 days (`npm run scrape -- --recent`). Already-archived VODs are skipped, and it stops as soon as it hits older videos. It also backfills scores and stages for a few thousand existing VODs each day when the YouTube title or description names them, then tries start.gg for recent tournament names if you add a `STARTGG_TOKEN` secret.
 
 ## Community tips
 
@@ -94,7 +101,12 @@ You need a GitHub account to send a tip. The daily scrape still does the main ca
 
 Channels included: VGBootCamp, Beyond the Summit - Smash, 2GGaming, ClubSmashTV, CLASH, まえだくん (Maesuma), and Tamisuma.jp.
 
-The scrape only stores titles and YouTube links. It does not download videos. Stages and winners are blank unless the title contains that info.
+The scrape does not download videos. Scores and stages come from two places, both incomplete:
+
+- YouTube titles and descriptions, when they actually name a score or stage.
+- start.gg, for events the TO reported into start.gg. Smash Theater matches those sets to YouTube VODs by player names, round, and (when present) a linked VOD URL. It will not guess if two sets look equally likely.
+
+Many weeklies, Japanese streams, and VODs titled only `Player1 vs Player2` will still show a dash. start.gg often has the set score and still lacks per-game stages. Create a token at [start.gg developer settings](https://start.gg/admin/profile/developer) and keep it in `STARTGG_TOKEN`, never in the public site.
 
 ## Manual archive
 

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { VOD_CHANNELS } from '../src/importer/channels.ts'
 import { sanitizeMatches } from '../src/importer/official.ts'
-import { syncYoutubeVods, type ChannelCheckpoint } from '../src/importer/sync.ts'
+import { enrichSetDetails, syncYoutubeVods, type ChannelCheckpoint } from '../src/importer/sync.ts'
 import type { Match } from '../src/types.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
@@ -46,18 +46,23 @@ if (!key) {
 
 const channelFilter = argValue('--channel')
 const recent = hasFlag('--recent')
+const enrich = hasFlag('--enrich')
+const scrape =
+  !enrich || recent || hasFlag('--full') || Boolean(channelFilter) || Boolean(argValue('--pages'))
 const sinceDays = Math.max(1, Number(argValue('--days') ?? (recent ? 3 : 0)))
-const pages = hasFlag('--full') || (!argValue('--pages') && !recent)
-  ? Number.POSITIVE_INFINITY
-  : Number(argValue('--pages') ?? (recent ? 8 : Number.POSITIVE_INFINITY))
+const pages =
+  hasFlag('--full') || (!argValue('--pages') && !recent && scrape)
+    ? Number.POSITIVE_INFINITY
+    : Number(argValue('--pages') ?? (recent ? 8 : Number.POSITIVE_INFINITY))
 const since = recent ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000) : undefined
+const enrichLimit = argValue('--limit') ? Math.max(1, Number(argValue('--limit'))) : undefined
 
 const channels = VOD_CHANNELS.map((channel) => ({
   ...channel,
   enabled: channelFilter ? channel.name.toLowerCase().includes(channelFilter.toLowerCase()) : channel.enabled,
 }))
 
-if (!channels.some((channel) => channel.enabled)) {
+if (scrape && !channels.some((channel) => channel.enabled)) {
   console.error(`No channel matched "${channelFilter}".`)
   process.exit(1)
 }
@@ -65,41 +70,81 @@ if (!channels.some((channel) => channel.enabled)) {
 const archive = sanitizeMatches(await readJson<Match[]>(ARCHIVE, []))
 const state = await readJson<ScrapeState>(STATE, { checkpoints: {} })
 const byId = new Map(archive.map((match) => [match.id, match]))
+let imported = 0
+let scanned = 0
+let skipped = 0
+let quotaHit = false
 
-console.log(`Starting scrape. Existing archive: ${byId.size} VODs.`)
-if (since) {
-  console.log(`Only importing VODs published after ${since.toISOString().slice(0, 10)} (last ${sinceDays} days).`)
-} else {
-  console.log(Number.isFinite(pages) ? `Scanning up to ${pages * 50} videos per channel.` : 'Scanning each channel to the end.')
-}
+if (scrape) {
+  console.log(`Starting scrape. Existing archive: ${byId.size} VODs.`)
+  if (since) {
+    console.log(`Only importing VODs published after ${since.toISOString().slice(0, 10)} (last ${sinceDays} days).`)
+  } else {
+    console.log(Number.isFinite(pages) ? `Scanning up to ${pages * 50} videos per channel.` : 'Scanning each channel to the end.')
+  }
 
-const result = await syncYoutubeVods({
-  apiKey: key,
-  pagesPerChannel: pages,
-  channels,
-  checkpoints: state.checkpoints,
-  knownIds: new Set(byId.keys()),
-  recentOnly: recent,
-  since,
-  onProgress: (progress) => console.log(`[${progress.channel}] ${progress.message}`),
-  onMatches: async (matches) => {
-    for (const match of matches) byId.set(match.id, match)
+  const result = await syncYoutubeVods({
+    apiKey: key,
+    pagesPerChannel: pages,
+    channels,
+    checkpoints: state.checkpoints,
+    knownIds: new Set(byId.keys()),
+    recentOnly: recent,
+    since,
+    onProgress: (progress) => console.log(`[${progress.channel}] ${progress.message}`),
+    onMatches: async (matches) => {
+      for (const match of matches) byId.set(match.id, match)
+      await writeJson(ARCHIVE, [...byId.values()])
+    },
+    onCheckpoint: async (channel, checkpoint) => {
+      state.checkpoints[channel] = checkpoint
+      await writeJson(STATE, state)
+    },
+  })
+
+  imported = result.imported
+  scanned = result.scanned
+  skipped = result.skipped
+  quotaHit = result.quotaHit
+  await writeJson(STATE, state)
+  if (result.imported > 0) {
     await writeJson(ARCHIVE, [...byId.values()])
-  },
-  onCheckpoint: async (channel, checkpoint) => {
-    state.checkpoints[channel] = checkpoint
-    await writeJson(STATE, state)
-  },
-})
-
-await writeJson(STATE, state)
-if (result.imported > 0) {
-  await writeJson(ARCHIVE, [...byId.values()])
+  }
+  console.log(
+    `Scrape finished. Archive now has ${byId.size} VODs. This run imported ${result.imported}, scanned ${result.scanned}, skipped ${result.skipped}.`,
+  )
 }
 
-console.log(
-  `Done. Archive now has ${byId.size} VODs. This run imported ${result.imported}, scanned ${result.scanned}, skipped ${result.skipped}.`,
-)
-if (result.quotaHit) {
+if (enrich && !quotaHit) {
+  const result = await enrichSetDetails({
+    apiKey: key,
+    matches: [...byId.values()],
+    limit: enrichLimit,
+    onProgress: (progress) => console.log(`[${progress.channel}] ${progress.message}`),
+    onWrite: async (matches) => {
+      byId.clear()
+      for (const match of matches) byId.set(match.id, match)
+      await writeJson(ARCHIVE, matches)
+    },
+  })
+  if (result.updated > 0) {
+    byId.clear()
+    for (const match of result.matches) byId.set(match.id, match)
+    await writeJson(ARCHIVE, result.matches)
+  }
+  quotaHit = quotaHit || result.quotaHit
+  console.log(`Enrich finished. Updated ${result.updated} of ${result.scanned} checked VODs.`)
+}
+
+if (!scrape && !enrich) {
+  console.error('Nothing to do. Pass scrape flags and/or --enrich.')
+  process.exit(1)
+}
+
+console.log(`Done. Archive now has ${byId.size} VODs.`)
+if (scrape) {
+  console.log(`Imported ${imported}, scanned ${scanned}, skipped ${skipped}.`)
+}
+if (quotaHit) {
   console.log('YouTube quota ran out. Run the same command tomorrow to resume.')
 }

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { FilterBar } from '../components/FilterBar'
 import { MatchList } from '../components/MatchList'
 import { filterMatches, uniquePlayers, uniqueTags } from '../lib/filters'
@@ -12,13 +13,15 @@ type Props = {
 
 export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
   const visible = filterMatches(matches, filters)
+  const players = useMemo(() => uniquePlayers(matches), [matches])
+  const tags = useMemo(() => uniqueTags(matches), [matches])
 
   return (
     <main className="page">
       <FilterBar
         filters={filters}
-        players={uniquePlayers(matches)}
-        tags={uniqueTags(matches)}
+        players={players}
+        tags={tags}
         onChange={onFilters}
       />
       <p className="count">

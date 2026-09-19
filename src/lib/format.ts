@@ -46,7 +46,13 @@ export function formatDate(iso: string) {
   })
 }
 
-export function setScore(games: { winner?: 1 | 2 }[]) {
+export function setScore(
+  games: { winner?: 1 | 2 }[],
+  recorded?: { p1: number; p2: number },
+) {
+  if (recorded && (recorded.p1 > 0 || recorded.p2 > 0)) {
+    return { p1: recorded.p1, p2: recorded.p2, label: `${recorded.p1}-${recorded.p2}` }
+  }
   if (!games.some((game) => game.winner === 1 || game.winner === 2)) {
     return { p1: 0, p2: 0, label: '—' }
   }

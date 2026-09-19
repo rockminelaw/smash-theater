@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseCharacterList } from '../src/importer/characterAliases.ts'
 import { sanitizeMatch } from '../src/importer/official.ts'
+import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parsedToGames, parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { getVideo } from '../src/importer/youtube.ts'
@@ -100,6 +101,7 @@ async function videoTitle(watchUrl: string, id: string) {
     title: data.title ?? '',
     publishedAt: '',
     channelTitle: data.author_name ?? '',
+    description: '',
     duration: 0,
   }
 }
@@ -141,6 +143,7 @@ const player2 = normalizePlayerName(section(body, 'Player 2')) || parsed?.player
 const p1Characters = parsed?.p1Characters?.length ? parsed.p1Characters : tipChars.p1
 const p2Characters = parsed?.p2Characters?.length ? parsed.p2Characters : tipChars.p2
 
+const details = parseSetDetails(`${video?.title ?? ''}\n${video?.description ?? ''}\n${body}`)
 const match = sanitizeMatch({
   id: `yt-${vod.id}`,
   date: (video?.publishedAt || new Date().toISOString()).slice(0, 10),
@@ -149,14 +152,18 @@ const match = sanitizeMatch({
   vodUrl: watchUrl,
   player1,
   player2,
-  games: parsedToGames({
-    tournament: parsed?.tournament || 'Community tip',
-    event: parsed?.event || 'Set',
-    player1,
-    player2,
-    p1Characters,
-    p2Characters,
-  }),
+  games: applySetDetails(
+    parsedToGames({
+      tournament: parsed?.tournament || 'Community tip',
+      event: parsed?.event || 'Set',
+      player1,
+      player2,
+      p1Characters,
+      p2Characters,
+    }),
+    details,
+  ),
+  setScore: details.score,
   notes: [section(body, 'Notes'), video?.channelTitle].filter(Boolean).join(' · ') || undefined,
   custom: true,
 })

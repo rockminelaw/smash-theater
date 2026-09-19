@@ -12,7 +12,7 @@ type Props = {
 
 export function MatchCard({ match, onDelete }: Props) {
   const [open, setOpen] = useState(false)
-  const score = setScore(match.games)
+  const score = setScore(match.games, match.setScore)
   const vod = parseVod(match.vodUrl)
   const p1Chars = uniqueInOrder(match.games.map((game) => game.p1Character))
   const p2Chars = uniqueInOrder(match.games.map((game) => game.p2Character))

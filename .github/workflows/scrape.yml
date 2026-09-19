@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+    inputs:
+      startgg_full:
+        description: Backfill scores and stages from start.gg for the whole archive
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,6 +20,7 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -26,18 +32,36 @@ jobs:
       - run: npm ci
 
       - name: Scrape recent uploads
+        if: ${{ github.event.inputs.startgg_full != 'true' }}
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: npm run scrape -- --recent --days 3
+        run: npm run scrape -- --recent --days 3 --enrich --limit 2500
+
+      - name: Fill scores from start.gg
+        continue-on-error: true
+        env:
+          STARTGG_TOKEN: ${{ secrets.STARTGG_TOKEN }}
+        run: |
+          if [ -z "$STARTGG_TOKEN" ]; then
+            echo "No STARTGG_TOKEN secret; skipping start.gg"
+            exit 0
+          fi
+          if [ "${{ github.event.inputs.startgg_full }}" = "true" ]; then
+            npm run startgg
+          else
+            npm run startgg -- --recent --days 30 --limit 40
+          fi
 
       - name: Commit archive if it changed
+        if: always()
         run: |
           git add public/archive.json
+          git add -f data/startgg-state.json
           if git diff --cached --quiet; then
-            echo "No new VODs"
+            echo "No archive changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Add newly scraped Ultimate VODs"
+          git commit -m "Update VOD archive"
           git push

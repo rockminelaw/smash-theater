@@ -27,6 +27,7 @@ export interface Match {
   player1: string
   player2: string
   games: Game[]
+  setScore?: { p1: number; p2: number }
   notes?: string
   custom?: boolean
 }

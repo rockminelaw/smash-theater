@@ -40,7 +40,7 @@ type PlaylistList = {
 type VideoList = {
   items?: Array<{
     id: string
-    snippet?: { title?: string; publishedAt?: string; channelTitle?: string }
+    snippet?: { title?: string; publishedAt?: string; channelTitle?: string; description?: string }
     contentDetails?: { duration?: string }
   }>
 }
@@ -162,22 +162,40 @@ export async function getVideo(id: string, key: string) {
     title: item.snippet?.title ?? '',
     publishedAt: item.snippet?.publishedAt ?? '',
     channelTitle: item.snippet?.channelTitle ?? '',
+    description: item.snippet?.description ?? '',
     duration: parseIsoDuration(item.contentDetails?.duration),
   }
 }
 
-export async function hydrateDurations(videos: Array<{ id: string }>, key: string) {
-  const durations = new Map<string, number>()
+export type VideoDetails = {
+  title: string
+  duration: number
+  description: string
+}
+
+export async function hydrateVideoDetails(videos: Array<{ id: string }>, key: string) {
+  const details = new Map<string, VideoDetails>()
   for (let i = 0; i < videos.length; i += 50) {
     const chunk = videos.slice(i, i + 50)
     const data = await youtubeGet<VideoList>(
       'videos',
-      { part: 'contentDetails', id: chunk.map((video) => video.id).join(',') },
+      { part: 'snippet,contentDetails', id: chunk.map((video) => video.id).join(',') },
       key,
     )
     for (const item of data.items ?? []) {
-      durations.set(item.id, parseIsoDuration(item.contentDetails?.duration))
+      details.set(item.id, {
+        title: item.snippet?.title ?? '',
+        duration: parseIsoDuration(item.contentDetails?.duration),
+        description: item.snippet?.description ?? '',
+      })
     }
   }
+  return details
+}
+
+export async function hydrateDurations(videos: Array<{ id: string }>, key: string) {
+  const details = await hydrateVideoDetails(videos, key)
+  const durations = new Map<string, number>()
+  for (const [id, item] of details) durations.set(id, item.duration)
   return durations
 }
