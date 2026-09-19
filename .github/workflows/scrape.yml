@@ -28,7 +28,7 @@ jobs:
       - name: Scrape recent uploads
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: npm run scrape -- --recent
+        run: npm run scrape -- --recent --days 3
 
       - name: Commit archive if it changed
         run: |

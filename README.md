@@ -56,7 +56,7 @@ Useful options:
 npm run scrape -- --key YOUR_API_KEY --channel VGBootCamp
 npm run scrape -- --key YOUR_API_KEY --channel Tamisuma
 
-# After the archive exists, only check for new uploads
+# After the archive exists, only check the last 3 days
 npm run scrape -- --key YOUR_API_KEY --recent
 
 # Drop any leftover non-Ultimate / unknown-character rows
@@ -76,7 +76,7 @@ GitHub Actions can check for new VODs every 24 hours and commit them to the repo
 
 After that it runs every day at 06:00 UTC with no further input. You can still run it by hand from the same Actions page.
 
-The job only scans recent uploads (`npm run scrape -- --recent`). It does not re-download the whole archive.
+The job only looks at uploads from the last 3 days (`npm run scrape -- --recent`). Already-archived VODs are skipped, and it stops as soon as it hits older videos.
 
 Channels included: VGBootCamp, Beyond the Summit - Smash, 2GGaming, ClubSmashTV, CLASH, まえだくん (Maesuma), and Tamisuma.jp.
 

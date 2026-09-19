@@ -33,9 +33,16 @@ export type SyncOptions = {
   checkpoints?: Record<string, ChannelCheckpoint>
   knownIds?: Set<string>
   recentOnly?: boolean
+  since?: Date
   onProgress?: (progress: SyncProgress) => void
   onMatches?: (matches: Match[]) => void | Promise<void>
   onCheckpoint?: (channel: string, checkpoint: ChannelCheckpoint) => void | Promise<void>
+}
+
+function publishedAtLeast(publishedAt: string, since: Date) {
+  const time = Date.parse(publishedAt)
+  if (Number.isNaN(time)) return false
+  return time >= since.getTime()
 }
 
 function toMatch(
@@ -62,6 +69,7 @@ export async function syncYoutubeVods(options: SyncOptions) {
   const channels = (options.channels ?? VOD_CHANNELS).filter((channel) => channel.enabled)
   const matches: Match[] = []
   const known = options.knownIds ?? new Set<string>()
+  const since = options.since
   let scanned = 0
   let skipped = 0
   let quotaHit = false
@@ -88,7 +96,16 @@ export async function syncYoutubeVods(options: SyncOptions) {
         channelScanned += result.videos.length
         scanned += result.videos.length
 
-        if (catchUp && result.videos.length > 0 && result.videos.every((video) => known.has(`yt-${video.id}`))) {
+        const window = since
+          ? result.videos.filter((video) => publishedAtLeast(video.publishedAt, since))
+          : result.videos
+        const hitOlderUploads = Boolean(since) && window.length < result.videos.length
+
+        if (
+          catchUp &&
+          result.videos.length > 0 &&
+          result.videos.every((video) => known.has(`yt-${video.id}`))
+        ) {
           options.onProgress?.({ channel: channel.name, message: 'No new VODs.' })
           await options.onCheckpoint?.(channel.name, {
             uploadsId: resolved.uploads,
@@ -99,7 +116,15 @@ export async function syncYoutubeVods(options: SyncOptions) {
           break
         }
 
-        const candidates = result.videos.filter((video) => !known.has(`yt-${video.id}`) && parseVodTitle(video.title))
+        if (since && window.length === 0) {
+          options.onProgress?.({
+            channel: channel.name,
+            message: 'No uploads in the recent window.',
+          })
+          break
+        }
+
+        const candidates = window.filter((video) => !known.has(`yt-${video.id}`) && parseVodTitle(video.title))
         skipped += result.videos.length - candidates.length
         const durations = await hydrateDurations(candidates, options.apiKey)
         const pageMatches: Match[] = []
@@ -115,14 +140,14 @@ export async function syncYoutubeVods(options: SyncOptions) {
           pageMatches.push(match)
         }
         matches.push(...pageMatches)
-        await options.onMatches?.(pageMatches)
+        if (pageMatches.length > 0) await options.onMatches?.(pageMatches)
         await options.onCheckpoint?.(channel.name, {
           uploadsId: resolved.uploads,
           pageToken: result.nextPageToken,
           done: result.done,
           scanned: catchUp ? (existing?.scanned ?? 0) : channelScanned,
         })
-        if (result.done) break
+        if (result.done || hitOlderUploads) break
         pageToken = result.nextPageToken
       }
     } catch (error) {

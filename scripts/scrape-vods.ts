@@ -45,9 +45,12 @@ if (!key) {
 }
 
 const channelFilter = argValue('--channel')
-const pages = hasFlag('--full') || (!argValue('--pages') && !hasFlag('--recent'))
+const recent = hasFlag('--recent')
+const sinceDays = Math.max(1, Number(argValue('--days') ?? (recent ? 3 : 0)))
+const pages = hasFlag('--full') || (!argValue('--pages') && !recent)
   ? Number.POSITIVE_INFINITY
-  : Number(argValue('--pages') ?? (hasFlag('--recent') ? 8 : Number.POSITIVE_INFINITY))
+  : Number(argValue('--pages') ?? (recent ? 8 : Number.POSITIVE_INFINITY))
+const since = recent ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000) : undefined
 
 const channels = VOD_CHANNELS.map((channel) => ({
   ...channel,
@@ -64,7 +67,11 @@ const state = await readJson<ScrapeState>(STATE, { checkpoints: {} })
 const byId = new Map(archive.map((match) => [match.id, match]))
 
 console.log(`Starting scrape. Existing archive: ${byId.size} VODs.`)
-console.log(Number.isFinite(pages) ? `Scanning up to ${pages * 50} videos per channel.` : 'Scanning each channel to the end.')
+if (since) {
+  console.log(`Only importing VODs published after ${since.toISOString().slice(0, 10)} (last ${sinceDays} days).`)
+} else {
+  console.log(Number.isFinite(pages) ? `Scanning up to ${pages * 50} videos per channel.` : 'Scanning each channel to the end.')
+}
 
 const result = await syncYoutubeVods({
   apiKey: key,
@@ -72,7 +79,8 @@ const result = await syncYoutubeVods({
   channels,
   checkpoints: state.checkpoints,
   knownIds: new Set(byId.keys()),
-  recentOnly: hasFlag('--recent'),
+  recentOnly: recent,
+  since,
   onProgress: (progress) => console.log(`[${progress.channel}] ${progress.message}`),
   onMatches: async (matches) => {
     for (const match of matches) byId.set(match.id, match)
@@ -84,8 +92,10 @@ const result = await syncYoutubeVods({
   },
 })
 
-await writeJson(ARCHIVE, [...byId.values()])
 await writeJson(STATE, state)
+if (result.imported > 0) {
+  await writeJson(ARCHIVE, [...byId.values()])
+}
 
 console.log(
   `Done. Archive now has ${byId.size} VODs. This run imported ${result.imported}, scanned ${result.scanned}, skipped ${result.skipped}.`,
