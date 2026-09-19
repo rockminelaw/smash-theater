@@ -1,23 +1,32 @@
 import type { Match } from '../types'
 import {
   applyStartggSet,
-  editionToken,
+  expandSearchQueries,
   isSearchableTournament,
   mapStartggSet,
-  namesSimilar,
   needsStartggDetails,
   pickBestSet,
+  pickTournament,
   searchNameForTournament,
+  tournamentFits,
   type StartggSet,
 } from './startggMap'
 
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
+const STATE_VERSION = 2
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {
     super(message)
     this.name = 'StartggRateLimitError'
+  }
+}
+
+export class StartggComplexityError extends Error {
+  constructor(message = 'start.gg query too complex') {
+    super(message)
+    this.name = 'StartggComplexityError'
   }
 }
 
@@ -51,7 +60,7 @@ type EventSetsData = {
 const SEARCH_TOURNAMENTS = `
 query SearchTournaments($name: String!) {
   tournaments(query: {
-    perPage: 8
+    perPage: 20
     page: 1
     filter: { name: $name, videogameIds: [${ULTIMATE_VIDEOGAME_ID}] }
     sortBy: "startAt desc"
@@ -72,10 +81,27 @@ query SearchTournaments($name: String!) {
 }
 `
 
+const TOURNAMENT_BY_SLUG = `
+query TournamentBySlug($slug: String!) {
+  tournament(slug: $slug) {
+    id
+    name
+    slug
+    startAt
+    events {
+      id
+      name
+      numEntrants
+      videogame { id }
+    }
+  }
+}
+`
+
 const EVENT_SETS = `
-query EventSets($eventId: ID!, $page: Int!) {
+query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
   event(id: $eventId) {
-    sets(page: $page, perPage: 20, sortType: STANDARD, filters: { hideEmpty: true }) {
+    sets(page: $page, perPage: $perPage, sortType: STANDARD, filters: { hideEmpty: true }) {
       pageInfo { totalPages }
       nodes {
         id
@@ -91,15 +117,22 @@ query EventSets($eventId: ID!, $page: Int!) {
           }
           standing { stats { score { value } } }
         }
-        games {
-          orderNum
-          winnerId
-          stage { name }
-          selections {
-            character { name }
-            entrant { id }
-          }
-        }
+      }
+    }
+  }
+}
+`
+
+const SET_GAMES = `
+query SetGames($id: ID!) {
+  set(id: $id) {
+    games {
+      orderNum
+      winnerId
+      stage { name }
+      selections {
+        character { name }
+        entrant { id }
       }
     }
   }
@@ -111,6 +144,7 @@ function sleep(ms: number) {
 }
 
 export type StartggState = {
+  version?: number
   misses: Record<string, string>
   done: Record<string, { slug: string; eventId: string; at: string }>
 }
@@ -138,38 +172,6 @@ export function pickUltimateEvent(events: TournamentNode['events']) {
   return best && best.score > -50000 ? best.event : undefined
 }
 
-export function pickTournament(
-  query: string,
-  nodes: TournamentNode[],
-  aroundDate?: string,
-) {
-  const queryEdition = editionToken(query)
-  const compatible = nodes.filter((node) => {
-    const name = node.name ?? ''
-    const eventEdition = editionToken(name)
-    if (queryEdition && eventEdition && queryEdition !== eventEdition) return false
-    return namesSimilar(query, name) >= 0.85 || Boolean(queryEdition && eventEdition && queryEdition === eventEdition)
-  })
-  const pool = compatible.length ? compatible : nodes.filter((node) => {
-    const eventEdition = editionToken(node.name ?? '')
-    return !(queryEdition && eventEdition && queryEdition !== eventEdition)
-  })
-  const dated = aroundDate ? Date.parse(`${aroundDate}T00:00:00Z`) : Number.NaN
-  const ranked = pool
-    .map((node) => {
-      const nameScore = namesSimilar(query, node.name ?? '')
-      let dateScore = 0
-      if (!Number.isNaN(dated) && node.startAt) {
-        const days = Math.abs(node.startAt * 1000 - dated) / 86400000
-        if (days <= 21) dateScore = 0.3
-        else if (days <= 60) dateScore = 0.1
-      }
-      return { node, score: nameScore + dateScore }
-    })
-    .sort((a, b) => b.score - a.score)
-  return ranked[0]?.node
-}
-
 async function graphql<T>(token: string, query: string, variables: Record<string, unknown>): Promise<T> {
   let lastError = 'start.gg request failed'
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -188,6 +190,9 @@ async function graphql<T>(token: string, query: string, variables: Record<string
       errors?: Array<{ message?: string }>
     }
     const message = payload.message ?? payload.errors?.[0]?.message ?? `start.gg ${response.status}`
+    if (/complexity|1000 objects/i.test(message)) {
+      throw new StartggComplexityError(message)
+    }
     if (response.status === 429 || /rate limit/i.test(message)) {
       lastError = message
       await sleep(65_000)
@@ -200,7 +205,7 @@ async function graphql<T>(token: string, query: string, variables: Record<string
     }
     if (payload.errors?.length) {
       lastError = message
-      if (/rate limit/i.test(message) || /complexity/i.test(message)) {
+      if (/rate limit/i.test(message)) {
         await sleep(65_000)
         continue
       }
@@ -213,26 +218,81 @@ async function graphql<T>(token: string, query: string, variables: Record<string
   throw new StartggRateLimitError(lastError)
 }
 
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function mergeTournaments(nodes: TournamentNode[]) {
+  const byId = new Map<string, TournamentNode>()
+  for (const node of nodes) {
+    const id = String(node.id ?? node.slug ?? '')
+    if (!id || byId.has(id)) continue
+    byId.set(id, node)
+  }
+  return [...byId.values()]
+}
+
 async function searchTournaments(token: string, name: string) {
-  const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
-    token,
-    SEARCH_TOURNAMENTS,
-    { name },
-  )
-  return data.tournaments?.nodes ?? []
+  const found: TournamentNode[] = []
+  const queries = expandSearchQueries(name)
+  for (const query of queries) {
+    const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
+      token,
+      SEARCH_TOURNAMENTS,
+      { name: query },
+    )
+    found.push(...(data.tournaments?.nodes ?? []))
+  }
+  const slugs = new Set<string>()
+  for (const query of queries) {
+    const slug = slugify(query)
+    if (!slug) continue
+    slugs.add(slug)
+    slugs.add(`tournament/${slug}`)
+  }
+  for (const slug of slugs) {
+    try {
+      const bySlug = await graphql<{ tournament?: TournamentNode | null }>(token, TOURNAMENT_BY_SLUG, { slug })
+      if (bySlug.tournament) found.push(bySlug.tournament)
+    } catch {
+      // Slug guesses are optional.
+    }
+  }
+  return mergeTournaments(found)
 }
 
 async function listEventSets(token: string, eventId: string) {
   const sets: StartggSet[] = []
   let page = 1
   let totalPages = 1
-  while (page <= totalPages && page <= 80) {
-    const data = await graphql<EventSetsData>(token, EVENT_SETS, { eventId, page })
-    totalPages = data.event?.sets?.pageInfo?.totalPages ?? page
-    sets.push(...(data.event?.sets?.nodes ?? []))
-    page += 1
+  let perPage = 32
+  while (page <= totalPages && page <= 120) {
+    try {
+      const data = await graphql<EventSetsData>(token, EVENT_SETS, { eventId, page, perPage })
+      totalPages = data.event?.sets?.pageInfo?.totalPages ?? page
+      sets.push(...(data.event?.sets?.nodes ?? []))
+      page += 1
+    } catch (error) {
+      if (error instanceof StartggComplexityError && perPage > 8) {
+        perPage = Math.max(8, Math.floor(perPage / 2))
+        page = 1
+        totalPages = 1
+        sets.length = 0
+        continue
+      }
+      throw error
+    }
   }
   return sets
+}
+
+async function hydrateSetGames(token: string, set: StartggSet) {
+  if (!set.id || (set.games && set.games.length > 0)) return set
+  const data = await graphql<{ set?: { games?: StartggSet['games'] } }>(token, SET_GAMES, { id: String(set.id) })
+  return { ...set, games: data.set?.games ?? set.games }
 }
 
 function medianDate(matches: Match[]) {
@@ -265,9 +325,11 @@ export async function enrichFromStartgg(options: {
   onWrite?: (matches: Match[]) => void | Promise<void>
   onCheckpoint?: (state: StartggState) => void | Promise<void>
 }) {
+  const stale = (options.state?.version ?? 0) < STATE_VERSION
   const state: StartggState = {
-    misses: { ...options.state?.misses },
-    done: { ...options.state?.done },
+    version: STATE_VERSION,
+    misses: stale ? {} : { ...options.state?.misses },
+    done: stale ? {} : { ...options.state?.done },
   }
   const byId = new Map(options.matches.map((match) => [match.id, match]))
   const needle = options.tournament?.toLowerCase()
@@ -313,16 +375,30 @@ export async function enrichFromStartgg(options: {
     try {
       nodes = await searchTournaments(options.token, query)
     } catch (error) {
-      if (error instanceof StartggRateLimitError) throw error
-      throw error
+      if (error instanceof StartggRateLimitError) {
+        options.onProgress?.({
+          tournament: query,
+          message: 'start.gg rate limit hit. Stopping this run; the next run will resume.',
+        })
+        break
+      }
+      options.onProgress?.({
+        tournament: query,
+        message: `Search failed (${error instanceof Error ? error.message : 'error'}). Skipping.`,
+      })
+      continue
     }
 
-    const tournament = pickTournament(query, nodes, medianDate(group))
+    const filtered = nodes.filter((node) => tournamentFits(query, node.name ?? '', node.slug ?? ''))
+    const tournament = pickTournament(query, filtered, medianDate(group))
     const event = pickUltimateEvent(tournament?.events)
     if (!tournament || !event?.id) {
       state.misses[key] = new Date().toISOString()
       await options.onCheckpoint?.(state)
-      options.onProgress?.({ tournament: query, message: 'No Ultimate singles event found on start.gg.' })
+      options.onProgress?.({
+        tournament: query,
+        message: `No start.gg tournament matched ${query}.`,
+      })
       continue
     }
 
@@ -330,14 +406,38 @@ export async function enrichFromStartgg(options: {
       tournament: query,
       message: `Fetching sets from ${tournament.name} / ${event.name}…`,
     })
-    const sets = await listEventSets(options.token, String(event.id))
+    let sets: StartggSet[]
+    try {
+      sets = await listEventSets(options.token, String(event.id))
+    } catch (error) {
+      if (error instanceof StartggRateLimitError) {
+        options.onProgress?.({
+          tournament: query,
+          message: 'start.gg rate limit hit. Stopping this run; the next run will resume.',
+        })
+        break
+      }
+      options.onProgress?.({
+        tournament: query,
+        message: `Could not load sets (${error instanceof Error ? error.message : 'error'}). Skipping.`,
+      })
+      continue
+    }
     let groupUpdated = 0
     for (const match of group) {
       const current = byId.get(match.id)
       if (!current || !needsStartggDetails(current)) continue
       const picked = pickBestSet(current, sets)
       if (!picked) continue
-      const mapped = mapStartggSet(current, picked)
+      let detailed = picked
+      try {
+        if (current.games.some((game) => !game.stage)) {
+          detailed = await hydrateSetGames(options.token, picked)
+        }
+      } catch {
+        detailed = picked
+      }
+      const mapped = mapStartggSet(current, detailed)
       if (!mapped) continue
       const next = applyStartggSet(current, mapped)
       if (

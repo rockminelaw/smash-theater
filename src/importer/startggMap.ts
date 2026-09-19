@@ -87,6 +87,120 @@ export function namesSimilar(a: string, b: string) {
   return 0
 }
 
+const TOURNAMENT_ALIASES: Array<[string, string]> = [
+  ['goml', 'Get On My Level'],
+  ['ssc', 'Super Smash Con'],
+  ['lmbm', "Let's Make Big Moves"],
+  ['lets make big moves', "Let's Make Big Moves"],
+  ['ufa', 'Ultimate Fighting Arena'],
+  ['2ggc', '2GGC'],
+]
+
+const TOURNAMENT_STOP = new Set([
+  'smash',
+  'ultimate',
+  'the',
+  'and',
+  'for',
+  'of',
+  'at',
+  'by',
+  'weekly',
+  'tournament',
+  'singles',
+  'event',
+  'game',
+  'games',
+  'championships',
+  'championship',
+  'fighting',
+  'canadian',
+  'presented',
+  'online',
+  'details',
+  'next',
+  'week',
+  'combo',
+  'splendid',
+  'get',
+  'on',
+  'my',
+])
+
+export function expandSearchQueries(name: string) {
+  const cleaned = searchNameForTournament(name)
+  const queries = [cleaned]
+  const lower = cleaned.toLowerCase()
+  for (const [acronym, expanded] of TOURNAMENT_ALIASES) {
+    if (lower === acronym || lower.startsWith(`${acronym} `) || lower.startsWith(`${acronym}:`)) {
+      queries.push(expanded)
+      queries.push(`${expanded}${cleaned.slice(acronym.length)}`)
+    }
+  }
+  return [...new Set(queries.map((query) => query.replace(/\s+/g, ' ').trim()).filter(Boolean))]
+}
+
+export function significantTokens(name: string) {
+  const parts = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  return parts.filter((token, index) => {
+    if (TOURNAMENT_STOP.has(token)) return false
+    if (index === parts.length - 1 && /^(x|ix|viii|vii|vi|v|iv|iii|ii|i)$/i.test(token)) return false
+    if (/\d/.test(token)) return true
+    if (token.length >= 4) return true
+    return index === parts.length - 1 && /^[a-z]\d*$/i.test(token)
+  })
+}
+
+export function tournamentFits(query: string, tournamentName: string, slug = '') {
+  return expandSearchQueries(query).some((candidate) => scoreTournament(candidate, tournamentName, slug) >= 0.85)
+}
+
+function scoreTournament(query: string, tournamentName: string, slug: string) {
+  const similar = Math.max(namesSimilar(query, tournamentName), namesSimilar(query, slug.replace(/-/g, ' ')))
+  if (similar >= 0.85) return similar
+  const queryEdition = editionToken(query)
+  const eventEdition = editionToken(tournamentName) ?? editionToken(slug)
+  if (queryEdition && eventEdition && queryEdition !== eventEdition) return 0
+  const wanted = significantTokens(query)
+  const haystack = new Set(significantTokens(`${tournamentName} ${slug.replace(/-/g, ' ')}`))
+  if (!wanted.length) return 0
+  const hits = wanted.filter((token) => {
+    if (haystack.has(token)) return true
+    return token.length >= 5 && [...haystack].some((part) => part.includes(token) || token.includes(part))
+  })
+  return hits.length === wanted.length ? 0.9 : 0
+}
+
+export function pickTournament<T extends { name?: string | null; slug?: string | null; startAt?: number | null }>(
+  query: string,
+  nodes: T[],
+  aroundDate?: string,
+) {
+  const dated = aroundDate ? Date.parse(`${aroundDate}T00:00:00Z`) : Number.NaN
+  const ranked = nodes
+    .map((node) => {
+      const name = node.name ?? ''
+      const slug = node.slug ?? ''
+      const fit = Math.max(...expandSearchQueries(query).map((candidate) => scoreTournament(candidate, name, slug)))
+      let dateScore = 0
+      let dateOk = true
+      if (!Number.isNaN(dated) && node.startAt) {
+        const days = Math.abs(node.startAt * 1000 - dated) / 86400000
+        if (days <= 45) dateScore = 0.05
+        if (days > 120) dateOk = false
+      }
+      return { node, score: fit + dateScore, fit, dateOk }
+    })
+    .filter((item) => item.fit >= 0.85 && item.dateOk)
+    .sort((a, b) => b.score - a.score)
+  return ranked[0]?.node
+}
+
 export function roundKey(text: string) {
   const value = text.toLowerCase()
   if (/reset/.test(value) && /grand|gf|グランドファイナル/.test(value)) return 'gfr'

@@ -7,8 +7,11 @@ import {
   mapCharacterName,
   mapStageName,
   parseDisplayScore,
+  expandSearchQueries,
   pickBestSet,
+  pickTournament,
   roundKey,
+  tournamentFits,
   type StartggSet,
 } from '../src/importer/startggMap.ts'
 import type { Match } from '../src/types.ts'
@@ -181,6 +184,56 @@ const flipped = applyStartggSet(
 const flippedOk = flipped.setScore?.p1 === 2 && flipped.setScore?.p2 === 3 && flipped.games[0]?.stage === 'pokemon_stadium_2'
 if (!flippedOk) failed += 1
 console.log(flippedOk ? 'OK  ' : 'FAIL', 'apply flipped start.gg score and stage')
+
+const goml = pickTournament('GOML 2026', [
+  { name: 'Genesis X4', slug: 'genesis-x4' },
+  { name: 'Get On My Level 2026 Canadian Fighting Game Championships', slug: 'get-on-my-level-2026-canadian-fighting-game-championships' },
+])
+const gomlOk = goml?.slug === 'get-on-my-level-2026-canadian-fighting-game-championships'
+if (!gomlOk) failed += 1
+console.log(gomlOk ? 'OK  ' : 'FAIL', 'GOML 2026 maps to Get On My Level 2026')
+
+const rejectWrong = [
+  ['GOML X', 'Genesis X4', 'genesis-x4'],
+  ['2GG Kongo Saga', 'El Puerto Smash Saga #38', 'el-puerto-smash-saga-38'],
+  ['2GGC: Civil War', 'Warhawk Weekly #48', 'warhawk-weekly-48'],
+  ['Riptide 2025', 'Kent Combo 228 - Riptide Next Week! Splendid', 'kent-combo-228'],
+] as const
+for (const [query, name, slug] of rejectWrong) {
+  const ok = !tournamentFits(query, name, slug)
+  if (!ok) failed += 1
+  console.log(ok ? 'OK  ' : 'FAIL', `reject ${query} -> ${name}`)
+}
+
+const genesisOk = tournamentFits('Genesis X4', 'Genesis X4', 'genesis-x4')
+if (!genesisOk) failed += 1
+console.log(genesisOk ? 'OK  ' : 'FAIL', 'Genesis X4 matches Genesis X4')
+
+const expanded = expandSearchQueries('GOML 2026')
+const expandOk = expanded.includes('Get On My Level 2026') && expanded.includes('Get On My Level')
+if (!expandOk) failed += 1
+console.log(expandOk ? 'OK  ' : 'FAIL', 'GOML 2026 expands to Get On My Level')
+
+const noFallback = pickTournament('GOML 2026', [{ name: 'Genesis X4', slug: 'genesis-x4' }])
+const noFallbackOk = !noFallback
+if (!noFallbackOk) failed += 1
+console.log(noFallbackOk ? 'OK  ' : 'FAIL', 'GOML 2026 does not fall back to Genesis X4')
+
+const gomlDated = pickTournament(
+  'GOML 2026',
+  [
+    { name: 'Get On My Level 2024', slug: 'get-on-my-level-2024', startAt: Date.parse('2024-05-17T00:00:00Z') / 1000 },
+    {
+      name: 'Get On My Level 2026 Canadian Fighting Game Championships',
+      slug: 'tournament/get-on-my-level-2026-canadian-fighting-game-championships',
+      startAt: Date.parse('2026-05-15T00:00:00Z') / 1000,
+    },
+  ],
+  '2026-05-16',
+)
+const gomlDatedOk = gomlDated?.slug === 'tournament/get-on-my-level-2026-canadian-fighting-game-championships'
+if (!gomlDatedOk) failed += 1
+console.log(gomlDatedOk ? 'OK  ' : 'FAIL', 'GOML 2026 prefers the 2026 start.gg event')
 
 if (failed) {
   console.error(`\n${failed} tests failed`)
