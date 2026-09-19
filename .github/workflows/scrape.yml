@@ -56,7 +56,9 @@ jobs:
         if: always()
         run: |
           git add public/archive.json
-          git add -f data/startgg-state.json
+          if [ -f data/startgg-state.json ]; then
+            git add -f data/startgg-state.json
+          fi
           if git diff --cached --quiet; then
             echo "No archive changes"
             exit 0
