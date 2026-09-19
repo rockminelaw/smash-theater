@@ -38,12 +38,16 @@ jobs:
         run: npm run scrape -- --recent --days 3 --enrich --limit 2500
 
       - name: Fill scores from start.gg
-        continue-on-error: true
         env:
           STARTGG_TOKEN: ${{ secrets.STARTGG_TOKEN }}
         run: |
           if [ -z "$STARTGG_TOKEN" ]; then
-            echo "No STARTGG_TOKEN secret; skipping start.gg"
+            echo "STARTGG_TOKEN is empty. Add a repository secret named exactly STARTGG_TOKEN at"
+            echo "https://github.com/rockminelaw/smash-theater/settings/secrets/actions"
+            if [ "${{ github.event.inputs.startgg_full }}" = "true" ]; then
+              exit 1
+            fi
+            echo "Skipping start.gg for the daily scrape."
             exit 0
           fi
           if [ "${{ github.event.inputs.startgg_full }}" = "true" ]; then
@@ -53,9 +57,9 @@ jobs:
           fi
 
       - name: Commit archive if it changed
-        if: always()
+        if: always() && !cancelled()
         run: |
-          git add public/archive.json
+          git add public/archive.json || true
           if [ -f data/startgg-state.json ]; then
             git add -f data/startgg-state.json
           fi
