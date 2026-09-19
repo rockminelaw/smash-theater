@@ -28,8 +28,8 @@ export function Header({ path }: Props) {
         <a href="#/stats" className={path === '/stats' ? 'is-active' : ''}>
           Stats
         </a>
-        <a href="#/add" className={`add-link${path === '/add' ? ' is-active' : ''}`}>
-          Add Matches +
+        <a href="#/suggest" className={`add-link${path === '/suggest' ? ' is-active' : ''}`}>
+          Suggest a VOD
         </a>
       </nav>
     </header>

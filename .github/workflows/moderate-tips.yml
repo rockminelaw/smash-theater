@@ -1,0 +1,58 @@
+name: Moderate VOD tips
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: moderate-tips
+  cancel-in-progress: false
+
+jobs:
+  reject:
+    if: github.event.label.name == 'rejected'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/approve-tip.ts
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_LABEL: rejected
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  approve:
+    if: github.event.label.name == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/approve-tip.ts
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_LABEL: approved
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit archive if it changed
+        run: |
+          git add public/archive.json
+          if git diff --cached --quiet; then
+            echo "No archive change"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add approved community VOD tip"
+          git push

@@ -78,6 +78,20 @@ After that it runs every day at 06:00 UTC with no further input. You can still r
 
 The job only looks at uploads from the last 3 days (`npm run scrape -- --recent`). Already-archived VODs are skipped, and it stops as soon as it hits older videos.
 
+## Community tips
+
+Visitors can suggest a VOD from **Suggest a VOD**. That opens a GitHub issue. Nothing is added to the live archive until you approve it.
+
+When a tip comes in, GitHub will email you. Then:
+
+1. Open [Issues](https://github.com/rockminelaw/smash-theater/issues?q=is%3Aissue+is%3Aopen+label%3Avod-tip).
+2. Watch the YouTube link.
+3. Add the **approved** label to put it in the archive, or **rejected** to close it.
+
+That is the whole review step. The Action reads the title, keeps official Ultimate characters only, and commits the VOD.
+
+You need a GitHub account to send a tip. The daily scrape still does the main catalog.
+
 Channels included: VGBootCamp, Beyond the Summit - Smash, 2GGaming, ClubSmashTV, CLASH, まえだくん (Maesuma), and Tamisuma.jp.
 
 The scrape only stores titles and YouTube links. It does not download videos. Stages and winners are blank unless the title contains that info.

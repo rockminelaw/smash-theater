@@ -634,8 +634,12 @@ a {
   width: fit-content;
 }
 
-.form-error {
-  color: var(--danger);
+.suggest-form .form-hint {
+  margin-top: 0.85rem;
+}
+
+.suggest-form .form-hint strong {
+  color: var(--text);
 }
 
 .stat-cards {

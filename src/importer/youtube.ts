@@ -40,6 +40,7 @@ type PlaylistList = {
 type VideoList = {
   items?: Array<{
     id: string
+    snippet?: { title?: string; publishedAt?: string; channelTitle?: string }
     contentDetails?: { duration?: string }
   }>
 }
@@ -150,6 +151,19 @@ export async function listUploads(
     pageToken = result.nextPageToken
   }
   return videos
+}
+
+export async function getVideo(id: string, key: string) {
+  const data = await youtubeGet<VideoList>('videos', { part: 'snippet,contentDetails', id }, key)
+  const item = data.items?.[0]
+  if (!item) return null
+  return {
+    id: item.id,
+    title: item.snippet?.title ?? '',
+    publishedAt: item.snippet?.publishedAt ?? '',
+    channelTitle: item.snippet?.channelTitle ?? '',
+    duration: parseIsoDuration(item.contentDetails?.duration),
+  }
 }
 
 export async function hydrateDurations(videos: Array<{ id: string }>, key: string) {

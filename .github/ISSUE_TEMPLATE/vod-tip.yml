@@ -1,0 +1,35 @@
+name: Suggest a VOD
+description: Tip a Smash Ultimate set for the archive. It stays private to the review queue until approved.
+title: "[VOD] "
+labels: ["vod-tip"]
+body:
+  - type: markdown
+    attributes:
+      value: Paste a YouTube link to a Smash Ultimate set. It will not go live until it is approved.
+  - type: input
+    id: url
+    attributes:
+      label: YouTube link
+      placeholder: https://www.youtube.com/watch?v=...
+    validations:
+      required: true
+  - type: input
+    id: player1
+    attributes:
+      label: Player 1
+      description: Optional if the video title already has the names.
+  - type: input
+    id: player2
+    attributes:
+      label: Player 2
+  - type: input
+    id: characters
+    attributes:
+      label: Characters
+      description: Optional. Example — Fox vs Marth
+      placeholder: Fox vs Marth
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Tournament, round, or anything else that helps.

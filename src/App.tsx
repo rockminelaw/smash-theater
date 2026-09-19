@@ -4,6 +4,7 @@ import { addMatch, deleteMatch, exportArchive, importArchive, loadMatches, merge
 import { AddPage } from './pages/AddPage'
 import { HomePage } from './pages/HomePage'
 import { StatsPage } from './pages/StatsPage'
+import { SuggestPage } from './pages/SuggestPage'
 import type { Match, MatchFilters, RoutePath } from './types'
 
 function parseHash() {
@@ -19,7 +20,7 @@ function parseHash() {
     stage: params.get('stage') ?? '',
     tag: params.get('tag') ?? '',
   }
-  return { path: (['/', '/add', '/stats'] as RoutePath[]).includes(path) ? path : '/', filters }
+  return { path: (['/', '/add', '/stats', '/suggest'] as RoutePath[]).includes(path) ? path : '/', filters }
 }
 
 function writeFilters(filters: MatchFilters) {
@@ -87,6 +88,7 @@ export default function App() {
           onDelete={(id) => setMatches(deleteMatch(id))}
         />
       )}
+      {path === '/suggest' && <SuggestPage />}
       {path === '/add' && (
         <AddPage
           matches={matches}

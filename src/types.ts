@@ -40,4 +40,4 @@ export interface MatchFilters {
   tag: string
 }
 
-export type RoutePath = '/' | '/add' | '/stats'
+export type RoutePath = '/' | '/add' | '/stats' | '/suggest'

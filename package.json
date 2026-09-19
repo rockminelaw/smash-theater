@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "scrape": "tsx scripts/scrape-vods.ts",
-    "scrub": "tsx scripts/scrub-archive.ts"
+    "scrub": "tsx scripts/scrub-archive.ts",
+    "approve-tip": "tsx scripts/approve-tip.ts"
   },
   "dependencies": {
     "react": "^19.2.8",
