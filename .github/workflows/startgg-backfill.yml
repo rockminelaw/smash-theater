@@ -1,0 +1,89 @@
+name: Backfill start.gg
+
+on:
+  schedule:
+    # Every 4 hours. Each run uses up to ~5 hours, then the next queued run continues.
+    - cron: '30 0,4,8,12,16,20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scrape-vods
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fill scores from start.gg until the time budget is used
+        env:
+          STARTGG_TOKEN: ${{ secrets.STARTGG_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "${STARTGG_TOKEN:-}" ]; then
+            echo "STARTGG_TOKEN is empty. Add a repository secret named exactly STARTGG_TOKEN."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          commit_progress() {
+            git add public/archive.json || true
+            if [ -f data/startgg-state.json ]; then
+              git add -f data/startgg-state.json
+            fi
+            if git diff --cached --quiet; then
+              return 1
+            fi
+            git commit -m "Update VOD archive"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push
+            return 0
+          }
+
+          DONE=0
+          # ~280 minutes of work; leave the rest of the job for the final commit.
+          END=$((SECONDS + 16800))
+          while [ "$SECONDS" -lt "$END" ]; do
+            echo "Backfill slice starting at ${SECONDS}s into this job."
+            set +e
+            npm run startgg -- --limit 120 --minutes 40 | tee /tmp/startgg.log
+            STATUS=${PIPESTATUS[0]}
+            set -e
+            if [ "$STATUS" -ne 0 ]; then
+              echo "start.gg slice exited $STATUS; saving whatever landed on disk."
+              commit_progress || true
+              exit "$STATUS"
+            fi
+            if grep -q 'No remaining tournament names' /tmp/startgg.log; then
+              DONE=1
+              commit_progress || true
+              break
+            fi
+            if ! commit_progress; then
+              echo "No archive or state changes this slice."
+              break
+            fi
+          done
+
+          if [ "$DONE" = "1" ]; then
+            echo "Start.gg backfill has no remaining tournament names."
+          else
+            echo "Slice time budget reached. The next scheduled run will continue."
+          fi

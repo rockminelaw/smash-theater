@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       startgg_full:
-        description: Backfill start.gg in a batch (resumes next run; leave off for the daily scrape)
+        description: Backfill start.gg for up to 5 hours (leave off for the daily scrape)
         type: boolean
         default: false
       startgg_batch:
-        description: Tournament names to look up this backfill run
+        description: Max tournament names this run (time budget still stops around 5 hours)
         type: number
-        default: 10
+        default: 400
 
 permissions:
   contents: write
@@ -56,7 +56,7 @@ jobs:
           fi
           if [ "${{ github.event.inputs.startgg_full }}" = "true" ]; then
             BATCH="${{ github.event.inputs.startgg_batch }}"
-            if [ -z "$BATCH" ] || [ "$BATCH" -lt 1 ]; then BATCH=10; fi
+            if [ -z "$BATCH" ] || [ "$BATCH" -lt 1 ]; then BATCH=400; fi
             npm run startgg -- --limit "$BATCH" --minutes 300
           else
             npm run startgg -- --recent --days 30 --limit 40

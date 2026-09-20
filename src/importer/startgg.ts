@@ -314,18 +314,22 @@ async function searchTournaments(
     found.push(...(data.tournaments?.nodes ?? []))
   }
 
-  const queries = searchQueryVariants(name)
+  const queries = searchQueryVariants(name).slice(0, 6)
   for (const query of queries) {
     await search(query, false)
     if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
   }
-  for (const query of queries.slice(0, 4)) {
+  for (const query of queries.slice(0, 3)) {
     await search(query, true)
     if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
   }
 
   const tried = new Set<string>()
-  for (const slug of [...slugCandidates(name), ...numberedSlugCandidates(name)]) {
+  const slugs = [
+    ...slugCandidates(name).filter((slug) => slug.startsWith('tournament/')).slice(0, 6),
+    ...numberedSlugCandidates(name, 12),
+  ]
+  for (const slug of slugs) {
     if (tried.has(slug)) continue
     tried.add(slug)
     options.onStatus?.(`Trying start.gg slug ${slug}…`)
