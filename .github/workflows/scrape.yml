@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       startgg_full:
-        description: Backfill scores and stages from start.gg for the whole archive
+        description: Backfill start.gg in a batch (resumes next run; leave off for the daily scrape)
         type: boolean
         default: false
+      startgg_batch:
+        description: Tournament names to look up this backfill run
+        type: number
+        default: 10
 
 permissions:
   contents: write
@@ -51,13 +55,15 @@ jobs:
             exit 0
           fi
           if [ "${{ github.event.inputs.startgg_full }}" = "true" ]; then
-            npm run startgg
+            BATCH="${{ github.event.inputs.startgg_batch }}"
+            if [ -z "$BATCH" ] || [ "$BATCH" -lt 1 ]; then BATCH=10; fi
+            npm run startgg -- --limit "$BATCH" --minutes 300
           else
             npm run startgg -- --recent --days 30 --limit 40
           fi
 
       - name: Commit archive if it changed
-        if: always() && !cancelled()
+        if: always()
         run: |
           git add public/archive.json || true
           if [ -f data/startgg-state.json ]; then

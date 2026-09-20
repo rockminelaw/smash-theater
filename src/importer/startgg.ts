@@ -312,6 +312,15 @@ function shouldRetryMiss(state: StartggState, key: string, refresh: boolean) {
   return Number.isNaN(age) || age > 14 * 24 * 60 * 60 * 1000
 }
 
+function isPendingTournament(
+  key: string,
+  state: StartggState,
+  options: { skipCached?: boolean; refresh?: boolean },
+) {
+  if (options.skipCached && state.done[key] && !options.refresh) return false
+  return shouldRetryMiss(state, key, Boolean(options.refresh))
+}
+
 export async function enrichFromStartgg(options: {
   token: string
   matches: Match[]
@@ -319,6 +328,7 @@ export async function enrichFromStartgg(options: {
   refresh?: boolean
   skipCached?: boolean
   limit?: number
+  minutes?: number
   since?: string
   tournament?: string
   onProgress?: (progress: StartggProgress) => void
@@ -344,31 +354,37 @@ export async function enrichFromStartgg(options: {
     groups.set(key, list)
   }
 
-  const ordered = [...groups.entries()].sort((a, b) => b[1].length - a[1].length)
-  const maxGroups = options.limit ?? ordered.length
+  const pending = [...groups.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .filter(([key]) => isPendingTournament(key, state, options))
+  const batch = pending.slice(0, options.limit ?? pending.length)
+  const deadline = options.minutes && options.minutes > 0 ? Date.now() + options.minutes * 60_000 : Number.POSITIVE_INFINITY
   let updated = 0
   let scanned = 0
   let searched = 0
 
-  for (const [key, group] of ordered.slice(0, maxGroups)) {
+  options.onProgress?.({
+    tournament: 'start.gg',
+    message:
+      `Looking up ${batch.length} of ${pending.length} remaining tournament names` +
+      (options.minutes ? ` (stop after ${options.minutes} minutes)` : '') +
+      '.',
+  })
+
+  for (const [key, group] of batch) {
+    if (Date.now() >= deadline) {
+      options.onProgress?.({
+        tournament: searchNameForTournament(group[0]?.tournament ?? key),
+        message: 'Time budget reached. Saving this batch; run again to continue.',
+      })
+      break
+    }
     scanned += group.length
     const query = searchNameForTournament(group[0]?.tournament ?? key)
     options.onProgress?.({
       tournament: query,
       message: `Looking up ${group.length} VODs on start.gg…`,
     })
-
-    if (options.skipCached && state.done[key] && !options.refresh) {
-      options.onProgress?.({
-        tournament: query,
-        message: 'Already checked this tournament name. Pass --refresh to try again.',
-      })
-      continue
-    }
-    if (!shouldRetryMiss(state, key, Boolean(options.refresh))) {
-      options.onProgress?.({ tournament: query, message: 'start.gg had no match recently; skipping.' })
-      continue
-    }
 
     searched += 1
     let nodes: TournamentNode[]
@@ -424,7 +440,12 @@ export async function enrichFromStartgg(options: {
       continue
     }
     let groupUpdated = 0
+    let timedOut = false
     for (const match of group) {
+      if (Date.now() >= deadline) {
+        timedOut = true
+        break
+      }
       const current = byId.get(match.id)
       if (!current || !needsStartggDetails(current)) continue
       const picked = pickBestSet(current, sets)
@@ -451,13 +472,22 @@ export async function enrichFromStartgg(options: {
       groupUpdated += 1
     }
 
+    if (groupUpdated > 0) await options.onWrite?.([...byId.values()])
+    if (timedOut) {
+      await options.onCheckpoint?.(state)
+      options.onProgress?.({
+        tournament: query,
+        message: `Time budget reached after matching ${groupUpdated} VODs. Saving this batch; run again to continue.`,
+      })
+      break
+    }
+
     delete state.misses[key]
     state.done[key] = {
       slug: tournament.slug ?? String(tournament.id),
       eventId: String(event.id),
       at: new Date().toISOString(),
     }
-    if (groupUpdated > 0) await options.onWrite?.([...byId.values()])
     await options.onCheckpoint?.(state)
     options.onProgress?.({
       tournament: query,
@@ -465,5 +495,6 @@ export async function enrichFromStartgg(options: {
     })
   }
 
-  return { matches: [...byId.values()], updated, scanned, searched, state }
+  const remaining = [...groups.keys()].filter((key) => isPendingTournament(key, state, options)).length
+  return { matches: [...byId.values()], updated, scanned, searched, remaining, state }
 }

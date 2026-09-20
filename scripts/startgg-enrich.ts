@@ -43,6 +43,7 @@ const recent = hasFlag('--recent')
 const refresh = hasFlag('--refresh')
 const sinceDays = Math.max(1, Number(argValue('--days') ?? (recent ? 30 : 0)))
 const limit = argValue('--limit') ? Math.max(1, Number(argValue('--limit'))) : recent ? 40 : undefined
+const minutes = argValue('--minutes') ? Math.max(1, Number(argValue('--minutes'))) : undefined
 const tournamentFilter = argValue('--tournament')
 
 const archive = sanitizeMatches(await readJson<Match[]>(ARCHIVE, []))
@@ -52,7 +53,8 @@ const since = recent ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).to
 console.log(
   `Checking start.gg against ${archive.length} archive VODs` +
     (since ? ` dated ${since} or later` : '') +
-    (limit ? `, up to ${limit} tournament names` : '') +
+    (limit ? `, up to ${limit} tournament names this run` : '') +
+    (minutes ? `, stopping after ${minutes} minutes` : '') +
     '.',
 )
 
@@ -63,6 +65,7 @@ const result = await enrichFromStartgg({
   refresh,
   skipCached: !recent && !refresh && !tournamentFilter,
   limit,
+  minutes,
   since,
   tournament: tournamentFilter,
   onProgress: (progress) => console.log(`[${progress.tournament}] ${progress.message}`),
@@ -78,5 +81,8 @@ if (result.updated > 0) await writeJson(ARCHIVE, result.matches)
 await writeJson(STATE, result.state)
 
 console.log(
-  `Done. Updated ${result.updated} VODs from ${result.searched} start.gg tournament lookups (${result.scanned} VODs considered).`,
+  `Done. Updated ${result.updated} VODs from ${result.searched} start.gg tournament lookups (${result.scanned} VODs considered).` +
+    (result.remaining > 0
+      ? ` ${result.remaining} tournament names still need a lookup; run the backfill again to continue.`
+      : ' No remaining tournament names.'),
 )
