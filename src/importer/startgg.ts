@@ -16,8 +16,8 @@ import {
 
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
-const STATE_VERSION = 2
-const MISS_VERSION = 1
+const STATE_VERSION = 3
+const MISS_VERSION = 2
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {
@@ -72,44 +72,48 @@ type EventSetsData = {
   } | null
 }
 
-const SEARCH_TOURNAMENTS = `
-query SearchTournaments($name: String!) {
-  tournaments(query: {
-    perPage: 20
-    page: 1
-    filter: { name: $name, videogameIds: [${ULTIMATE_VIDEOGAME_ID}] }
-    sortBy: "startAt desc"
-  }) {
-    nodes {
+const EVENT_FIELDS = `
       id
       name
       slug
       startAt
-      events {
+      events(filter: { videogameId: [${ULTIMATE_VIDEOGAME_ID}] }) {
         id
         name
         numEntrants
         videogame { id }
       }
-    }
+`
+
+const SEARCH_TOURNAMENTS = `
+query SearchTournaments($name: String!, $perPage: Int!) {
+  tournaments(query: {
+    perPage: $perPage
+    page: 1
+    filter: { name: $name, videogameIds: [${ULTIMATE_VIDEOGAME_ID}] }
+    sortBy: "startAt desc"
+  }) {
+    nodes {${EVENT_FIELDS}    }
+  }
+}
+`
+
+const SEARCH_TOURNAMENTS_ANY = `
+query SearchTournamentsAny($name: String!, $perPage: Int!) {
+  tournaments(query: {
+    perPage: $perPage
+    page: 1
+    filter: { name: $name }
+    sortBy: "startAt desc"
+  }) {
+    nodes {${EVENT_FIELDS}    }
   }
 }
 `
 
 const TOURNAMENT_BY_SLUG = `
 query TournamentBySlug($slug: String!) {
-  tournament(slug: $slug) {
-    id
-    name
-    slug
-    startAt
-    events {
-      id
-      name
-      numEntrants
-      videogame { id }
-    }
-  }
+  tournament(slug: $slug) {${EVENT_FIELDS}  }
 }
 `
 
@@ -271,11 +275,17 @@ function mergeTournaments(nodes: TournamentNode[]) {
   return [...byId.values()]
 }
 
-function foundTournament(nodes: TournamentNode[], name: string) {
-  return mergeTournaments(nodes).some((node) => tournamentFits(name, node.name ?? '', node.slug ?? ''))
+function foundTournament(nodes: TournamentNode[], name: string, aroundDate?: string) {
+  const tournament = pickTournament(name, mergeTournaments(nodes), aroundDate)
+  return Boolean(tournament && pickUltimateEvent(tournament.events)?.id)
 }
 
-async function searchTournaments(token: string, name: string, options: GraphqlOptions = {}) {
+async function searchTournaments(
+  token: string,
+  name: string,
+  options: GraphqlOptions = {},
+  aroundDate?: string,
+) {
   const found: TournamentNode[] = []
   const trySlug = async (slug: string) => {
     try {
@@ -291,16 +301,27 @@ async function searchTournaments(token: string, name: string, options: GraphqlOp
     }
   }
 
-  for (const query of searchQueryVariants(name)) {
-    options.onStatus?.(`Searching start.gg for "${query}"…`)
+  const search = async (query: string, anyGame: boolean) => {
+    options.onStatus?.(
+      anyGame ? `Searching start.gg for "${query}" (all games)…` : `Searching start.gg for "${query}"…`,
+    )
     const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
       token,
-      SEARCH_TOURNAMENTS,
-      { name: query },
+      anyGame ? SEARCH_TOURNAMENTS_ANY : SEARCH_TOURNAMENTS,
+      { name: query, perPage: anyGame ? 50 : 40 },
       options,
     )
     found.push(...(data.tournaments?.nodes ?? []))
-    if (foundTournament(found, name)) return mergeTournaments(found)
+  }
+
+  const queries = searchQueryVariants(name)
+  for (const query of queries) {
+    await search(query, false)
+    if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
+  }
+  for (const query of queries.slice(0, 4)) {
+    await search(query, true)
+    if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
   }
 
   const tried = new Set<string>()
@@ -309,7 +330,7 @@ async function searchTournaments(token: string, name: string, options: GraphqlOp
     tried.add(slug)
     options.onStatus?.(`Trying start.gg slug ${slug}…`)
     await trySlug(slug)
-    if (foundTournament(found, name)) return mergeTournaments(found)
+    if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
   }
   return mergeTournaments(found)
 }
@@ -463,7 +484,7 @@ export async function enrichFromStartgg(options: {
     }
     let nodes: TournamentNode[]
     try {
-      nodes = await searchTournaments(options.token, query, request)
+      nodes = await searchTournaments(options.token, query, request, medianDate(group))
     } catch (error) {
       if (error instanceof StartggBudgetError) {
         options.onProgress?.({
@@ -486,7 +507,9 @@ export async function enrichFromStartgg(options: {
       continue
     }
 
-    const filtered = nodes.filter((node) => tournamentFits(query, node.name ?? '', node.slug ?? ''))
+    const filtered = nodes.filter((node) =>
+      tournamentFits(query, node.name ?? '', node.slug ?? '', node.startAt),
+    )
     const tournament = pickTournament(query, filtered, medianDate(group))
     const event = pickUltimateEvent(tournament?.events)
     if (!tournament || !event?.id) {

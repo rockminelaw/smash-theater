@@ -89,12 +89,16 @@ export function namesSimilar(a: string, b: string) {
 
 const TOURNAMENT_ALIASES: Array<[string, string]> = [
   ['goml', 'Get On My Level'],
+  ['goml', 'Get On My Level Canadian Fighting Game Championships'],
+  ['goml', 'Get On My Level Forever'],
   ['ssc', 'Super Smash Con'],
   ['lmbm', "Let's Make BIG Moves"],
   ['lmbm', "Let's Make Big Moves"],
   ['lets make big moves', "Let's Make BIG Moves"],
   ['lets make big moves', "Let's Make Big Moves"],
   ['ufa', 'Ultimate Fighting Arena'],
+  ['ceo', 'Community Effort Orlando'],
+  ['tbh', 'The Big House'],
   ['2ggc', '2GGC'],
 ]
 
@@ -181,28 +185,70 @@ export function slugifyTournament(name: string) {
     .replace(/^-+|-+$/g, '')
 }
 
+function withTournamentPrefix(core: string) {
+  return core.startsWith('tournament/') ? core : `tournament/${core}`
+}
+
+export function yearShiftedSlugs(slug: string) {
+  const prefix = slug.startsWith('tournament/') ? 'tournament/' : ''
+  const core = slug.replace(/^tournament\//, '')
+  const ended = core.match(/^(.*)-(20\d{2})$/)
+  if (!ended) return []
+  const parts = ended[1]?.split('-').filter(Boolean) ?? []
+  const year = ended[2]
+  if (!year || parts.length < 3) return []
+  const extra: string[] = []
+  for (let index = 2; index < parts.length; index += 1) {
+    extra.push(`${prefix}${[...parts.slice(0, index), year, ...parts.slice(index)].join('-')}`)
+  }
+  return extra
+}
+
 export function slugCandidates(name: string) {
   const slugs = new Set<string>()
   const add = (core: string) => {
     if (!core) return
     slugs.add(core)
     slugs.add(`tournament/${core}`)
+    for (const shifted of yearShiftedSlugs(core)) {
+      slugs.add(shifted)
+      slugs.add(withTournamentPrefix(shifted))
+    }
   }
   for (const query of searchQueryVariants(name)) {
     add(slugifyTournament(query))
     add(slugifyTournament(query.replace(/['’ʻ`]/g, '-')))
     add(slugifyTournament(query.replace(/['’ʻ`]/g, '')))
   }
+  if (/saga|hyrule|kongo|ktar|prime|\b2gg/i.test(name)) {
+    for (const query of searchQueryVariants(name)) {
+      const core = slugifyTournament(query.replace(/^2ggc?:?\s*/i, ''))
+      add(`2gg-${core}`)
+      add(`2ggc-${core}`)
+    }
+  }
   return [...slugs].sort((a, b) => b.length - a.length || a.localeCompare(b))
 }
 
-export function numberedSlugCandidates(name: string, max = 12) {
-  const preferred = slugCandidates(name).find((slug) => {
-    const core = slug.replace(/^tournament\//, '')
-    return slug.startsWith('tournament/') && core.length >= 16 && /20\d{2}/.test(core)
-  })
-  if (!preferred) return []
-  return Array.from({ length: max - 1 }, (_, index) => `${preferred}-${index + 2}`)
+export function numberedSlugCandidates(name: string, max = 15) {
+  const cores = [
+    ...new Set(slugCandidates(name).map((slug) => slug.replace(/^tournament\//, ''))),
+  ]
+  const yearCores = cores
+    .filter((core) => /20\d{2}$/.test(core) && core.length >= 16 && core.length <= 48)
+    .sort((a, b) => a.length - b.length)
+  const editionCores = cores.filter(
+    (core) => /-\d{1,2}$/.test(core) && !/20\d{2}/.test(core) && core.length >= 10 && core.length <= 40,
+  )
+  const bases = [...new Set([...yearCores.slice(0, 2), ...editionCores.slice(0, 2)])]
+  return bases.flatMap((base) => Array.from({ length: max - 1 }, (_, index) => `tournament/${base}-${index + 2}`))
+}
+
+function yearFromTimestamp(startAt?: number | null) {
+  if (!startAt) return undefined
+  const year = new Date(startAt * 1000).getUTCFullYear()
+  if (year < 2018 || year > 2035) return undefined
+  return String(year)
 }
 
 export function significantTokens(name: string) {
@@ -221,24 +267,27 @@ export function significantTokens(name: string) {
   })
 }
 
-export function tournamentFits(query: string, tournamentName: string, slug = '') {
-  return expandSearchQueries(query).some((candidate) => scoreTournament(candidate, tournamentName, slug) >= 0.85)
+export function tournamentFits(query: string, tournamentName: string, slug = '', startAt?: number | null) {
+  return expandSearchQueries(query).some((candidate) => scoreTournament(candidate, tournamentName, slug, startAt) >= 0.85)
 }
 
-function scoreTournament(query: string, tournamentName: string, slug: string) {
+function scoreTournament(query: string, tournamentName: string, slug: string, startAt?: number | null) {
+  const queryEdition = editionToken(query)
+  const eventEdition = editionToken(tournamentName) ?? editionToken(slug) ?? yearFromTimestamp(startAt)
+  if (queryEdition && eventEdition && queryEdition !== eventEdition) return 0
   const similar = Math.max(namesSimilar(query, tournamentName), namesSimilar(query, slug.replace(/-/g, ' ')))
   if (similar >= 0.85) return similar
-  const queryEdition = editionToken(query)
-  const eventEdition = editionToken(tournamentName) ?? editionToken(slug)
-  if (queryEdition && eventEdition && queryEdition !== eventEdition) return 0
   const wanted = significantTokens(query)
-  const haystack = new Set(significantTokens(`${tournamentName} ${slug.replace(/-/g, ' ')}`))
+  const haystack = new Set(significantTokens(`${tournamentName} ${slug.replace(/-/g, ' ')} ${eventEdition ?? ''}`))
   if (!wanted.length) return 0
   const hits = wanted.filter((token) => {
     if (haystack.has(token)) return true
     return token.length >= 5 && [...haystack].some((part) => part.includes(token) || token.includes(part))
   })
-  return hits.length === wanted.length ? 0.9 : 0
+  if (hits.length !== wanted.length) return 0
+  const named = wanted.filter((token) => !/^\d+$/.test(token))
+  if (named.length < 2 && !named.some((token) => token.length >= 6)) return 0
+  return 0.9
 }
 
 export function pickTournament<T extends { name?: string | null; slug?: string | null; startAt?: number | null }>(
@@ -251,7 +300,9 @@ export function pickTournament<T extends { name?: string | null; slug?: string |
     .map((node) => {
       const name = node.name ?? ''
       const slug = node.slug ?? ''
-      const fit = Math.max(...expandSearchQueries(query).map((candidate) => scoreTournament(candidate, name, slug)))
+      const fit = Math.max(
+        ...expandSearchQueries(query).map((candidate) => scoreTournament(candidate, name, slug, node.startAt)),
+      )
       let dateScore = 0
       let dateOk = true
       if (!Number.isNaN(dated) && node.startAt) {

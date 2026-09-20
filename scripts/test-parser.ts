@@ -16,7 +16,9 @@ import {
   pickTournament,
   roundKey,
   searchQueryVariants,
+  slugCandidates,
   tournamentFits,
+  yearShiftedSlugs,
   type StartggSet,
 } from '../src/importer/startggMap.ts'
 import type { Match } from '../src/types.ts'
@@ -282,6 +284,47 @@ const gomlDated = pickTournament(
 const gomlDatedOk = gomlDated?.slug === 'tournament/get-on-my-level-2026-canadian-fighting-game-championships'
 if (!gomlDatedOk) failed += 1
 console.log(gomlDatedOk ? 'OK  ' : 'FAIL', 'GOML 2026 prefers the 2026 start.gg event')
+
+const newLevel = pickTournament('GOML 2026', [
+  { name: 'New Level: Final Stock', slug: 'tournament/new-level-final-stock', startAt: Date.parse('2026-05-16T00:00:00Z') / 1000 },
+])
+const newLevelOk = !newLevel
+if (!newLevelOk) failed += 1
+console.log(newLevelOk ? 'OK  ' : 'FAIL', 'GOML 2026 does not match New Level: Final Stock')
+
+const gomlForever = pickTournament(
+  'GOML 2025',
+  [
+    {
+      name: 'Get On My Level: Forever - Canadian Fighting Game Championships',
+      slug: 'tournament/get-on-my-level-forever-canadian-fighting-game-championships',
+      startAt: Date.parse('2025-07-04T00:00:00Z') / 1000,
+    },
+  ],
+  '2025-07-05',
+)
+const gomlForeverOk = gomlForever?.slug === 'tournament/get-on-my-level-forever-canadian-fighting-game-championships'
+if (!gomlForeverOk) failed += 1
+console.log(gomlForeverOk ? 'OK  ' : 'FAIL', 'GOML 2025 maps to Get On My Level Forever')
+
+const gomlSlugOk = slugCandidates('GOML 2026').includes(
+  'tournament/get-on-my-level-2026-canadian-fighting-game-championships',
+)
+if (!gomlSlugOk) failed += 1
+console.log(gomlSlugOk ? 'OK  ' : 'FAIL', 'GOML 2026 slug includes canadian-fighting-game-championships')
+
+const shifted = yearShiftedSlugs('get-on-my-level-canadian-fighting-game-championships-2026')
+const shiftedOk = shifted.includes('get-on-my-level-2026-canadian-fighting-game-championships')
+if (!shiftedOk) failed += 1
+console.log(shiftedOk ? 'OK  ' : 'FAIL', 'year can sit in the middle of a start.gg slug')
+
+const portSlugOk = numberedSlugCandidates('Port Priority 9').includes('tournament/port-priority-9-10')
+if (!portSlugOk) failed += 1
+console.log(portSlugOk ? 'OK  ' : 'FAIL', 'Port Priority 9 tries start.gg slug with -10 suffix')
+
+const hyruleOk = slugCandidates('Hyrule Saga').some((slug) => slug.includes('2gg-hyrule-saga'))
+if (!hyruleOk) failed += 1
+console.log(hyruleOk ? 'OK  ' : 'FAIL', 'Hyrule Saga also tries a 2GG slug')
 
 const lmbmQueries = searchQueryVariants('LMBM 2026')
 const lmbmQueryOk =
