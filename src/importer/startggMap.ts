@@ -11,6 +11,7 @@ export type StartggSlot = {
     name?: string | null
     participants?: Array<{
       gamerTag?: string | null
+      prefix?: string | null
       player?: { gamerTag?: string | null } | null
     }> | null
   } | null
@@ -75,7 +76,9 @@ export function editionToken(name: string) {
   const year = name.match(/\b(20\d{2})\b/)
   if (year) return year[1]
   const numbered = name.match(/\b(\d{1,2})\b/)
-  return numbered?.[1]
+  if (numbered) return numbered[1]
+  const roman = name.match(/\b(x|ix|viii|vii|vi|v|iv|iii|ii|i)\b/i)
+  return roman?.[1]?.toLowerCase()
 }
 
 export function namesSimilar(a: string, b: string) {
@@ -178,6 +181,26 @@ export function searchQueryVariants(name: string) {
   return uniqueQueries(queries).sort((a, b) => b.length - a.length || a.localeCompare(b))
 }
 
+export function searchQueriesForApi(name: string) {
+  const seen = new Set<string>()
+  const queries: string[] = []
+  const add = (query: string) => {
+    const trimmed = query.replace(/\s+/g, ' ').trim()
+    const key = trimmed.toLowerCase()
+    if (!trimmed || seen.has(key)) return
+    seen.add(key)
+    queries.push(trimmed)
+  }
+  const cleaned = searchNameForTournament(name)
+  for (const [acronym, expanded] of TOURNAMENT_ALIASES) {
+    if (!aliasHits(cleaned, acronym)) continue
+    add(`${expanded}${remainderAfterAlias(cleaned, acronym)}`)
+  }
+  add(cleaned)
+  for (const query of expandSearchQueries(name)) add(query)
+  return queries
+}
+
 export function slugifyTournament(name: string) {
   return name
     .toLowerCase()
@@ -189,19 +212,59 @@ function withTournamentPrefix(core: string) {
   return core.startsWith('tournament/') ? core : `tournament/${core}`
 }
 
-export function yearShiftedSlugs(slug: string) {
+const SLUG_STOP = new Set([
+  'canadian',
+  'fighting',
+  'game',
+  'games',
+  'championships',
+  'championship',
+  'presented',
+  'online',
+  'the',
+  'and',
+  'of',
+  'for',
+])
+
+function shiftTrailingEdition(slug: string, editionPattern: RegExp) {
   const prefix = slug.startsWith('tournament/') ? 'tournament/' : ''
   const core = slug.replace(/^tournament\//, '')
-  const ended = core.match(/^(.*)-(20\d{2})$/)
+  const ended = core.match(editionPattern)
   if (!ended) return []
   const parts = ended[1]?.split('-').filter(Boolean) ?? []
-  const year = ended[2]
-  if (!year || parts.length < 3) return []
+  const edition = ended[2]?.toLowerCase()
+  if (!edition || parts.length < 3) return []
   const extra: string[] = []
+  let cut = parts.length
+  while (cut > 2 && SLUG_STOP.has(parts[cut - 1] ?? '')) cut -= 1
+  if (cut < parts.length && cut >= 2) {
+    extra.push(`${prefix}${[...parts.slice(0, cut), edition, ...parts.slice(cut)].join('-')}`)
+  }
   for (let index = 2; index < parts.length; index += 1) {
-    extra.push(`${prefix}${[...parts.slice(0, index), year, ...parts.slice(index)].join('-')}`)
+    extra.push(`${prefix}${[...parts.slice(0, index), edition, ...parts.slice(index)].join('-')}`)
   }
   return extra
+}
+
+export function yearShiftedSlugs(slug: string) {
+  return shiftTrailingEdition(slug, /^(.*)-(20\d{2})$/)
+}
+
+export function editionShiftedSlugs(slug: string) {
+  return [
+    ...shiftTrailingEdition(slug, /^(.*)-(20\d{2})$/),
+    ...shiftTrailingEdition(slug, /^(.*)-(x|ix|viii|vii|vi|v|iv|iii|ii|i)$/i),
+  ]
+}
+
+export function preferredSlugCandidates(name: string) {
+  const cores = [...new Set(slugCandidates(name).map((slug) => slug.replace(/^tournament\//, '')))]
+  return [
+    ...new Set(
+      cores.flatMap((core) => editionShiftedSlugs(`tournament/${core}`).filter((slug) => slug.startsWith('tournament/'))),
+    ),
+  ]
 }
 
 export function slugCandidates(name: string) {
@@ -210,7 +273,7 @@ export function slugCandidates(name: string) {
     if (!core) return
     slugs.add(core)
     slugs.add(`tournament/${core}`)
-    for (const shifted of yearShiftedSlugs(core)) {
+    for (const shifted of editionShiftedSlugs(core)) {
       slugs.add(shifted)
       slugs.add(withTournamentPrefix(shifted))
     }
@@ -268,11 +331,11 @@ export function significantTokens(name: string) {
 }
 
 export function tournamentFits(query: string, tournamentName: string, slug = '', startAt?: number | null) {
-  return expandSearchQueries(query).some((candidate) => scoreTournament(candidate, tournamentName, slug, startAt) >= 0.85)
+  return expandSearchQueries(query).some((candidate) => scoreTournament(candidate, tournamentName, slug, startAt, query) >= 0.85)
 }
 
-function scoreTournament(query: string, tournamentName: string, slug: string, startAt?: number | null) {
-  const queryEdition = editionToken(query)
+function scoreTournament(query: string, tournamentName: string, slug: string, startAt?: number | null, original = query) {
+  const queryEdition = editionToken(original) ?? editionToken(query)
   const eventEdition = editionToken(tournamentName) ?? editionToken(slug) ?? yearFromTimestamp(startAt)
   if (queryEdition && eventEdition && queryEdition !== eventEdition) return 0
   const similar = Math.max(namesSimilar(query, tournamentName), namesSimilar(query, slug.replace(/-/g, ' ')))
@@ -301,7 +364,7 @@ export function pickTournament<T extends { name?: string | null; slug?: string |
       const name = node.name ?? ''
       const slug = node.slug ?? ''
       const fit = Math.max(
-        ...expandSearchQueries(query).map((candidate) => scoreTournament(candidate, name, slug, node.startAt)),
+        ...expandSearchQueries(query).map((candidate) => scoreTournament(candidate, name, slug, node.startAt, query)),
       )
       let dateScore = 0
       let dateOk = true
@@ -359,28 +422,71 @@ export function mapStageName(name?: string | null) {
   return parseStages(name)[0]
 }
 
+const SLOT_TAG_CACHE = new WeakMap<StartggSlot, string[]>()
+const SET_SIDE_CACHE = new WeakMap<StartggSet, [string[], string[]]>()
+
 function slotTags(slot?: StartggSlot | null) {
+  if (!slot) return []
+  const cached = SLOT_TAG_CACHE.get(slot)
+  if (cached) return cached
   const tags = [
-    slot?.entrant?.name,
-    ...(slot?.entrant?.participants?.flatMap((part) => [part.gamerTag, part.player?.gamerTag]) ?? []),
+    slot.entrant?.name,
+    ...(slot.entrant?.participants?.flatMap((part) => [
+      part.gamerTag,
+      part.player?.gamerTag,
+      part.prefix && part.gamerTag ? `${part.prefix} | ${part.gamerTag}` : undefined,
+    ]) ?? []),
   ]
-  return tags.map((tag) => normalizePlayerName(tag ?? '')).filter(Boolean)
+  const normalized = [...new Set(tags.map((tag) => normalizePlayerName(tag ?? '')).filter(Boolean))]
+  SLOT_TAG_CACHE.set(slot, normalized)
+  return normalized
+}
+
+function displayScoreNames(text?: string | null) {
+  if (!text) return undefined
+  const named = text.trim().match(/^(.*?)\s+(\d+)\s*[-–]\s+(.*?)\s+(\d+)$/)
+  if (!named?.[1] || !named[3]) return undefined
+  return [named[1], named[3]] as const
+}
+
+function sideKeys(set: StartggSet, index: 0 | 1) {
+  const cached = SET_SIDE_CACHE.get(set)
+  if (cached) return cached[index]
+  const names = displayScoreNames(set.displayScore)
+  const keys = [0, 1].map((side) => {
+    const tags = [
+      ...slotTags(set.slots?.[side as 0 | 1]),
+      ...(names?.[side] ? [normalizePlayerName(names[side])] : []),
+    ]
+    return [...new Set(tags.map((tag) => playerKey(tag)).filter(Boolean))]
+  }) as [string[], string[]]
+  SET_SIDE_CACHE.set(set, keys)
+  return keys[index]
+}
+
+function lookalikeKey(value: string) {
+  return value.replace(/0/g, 'o')
+}
+
+function keysCompatible(want: string, got: string) {
+  if (!want || !got) return false
+  if (want === got) return true
+  if (want.length >= 4 && got.length >= 4 && (got.includes(want) || want.includes(got))) return true
+  if (want.length >= 5 && got.length >= 5 && lookalikeKey(want) === lookalikeKey(got)) return true
+  return false
 }
 
 export function samePlayer(archiveName: string, slot?: StartggSlot | null) {
   const want = playerKey(archiveName)
   if (!want) return false
-  return slotTags(slot).some((tag) => {
-    const got = playerKey(tag)
-    if (!got) return false
-    if (got === want) return true
-    return want.length >= 4 && got.length >= 4 && (got.includes(want) || want.includes(got))
-  })
+  return slotTags(slot).some((tag) => keysCompatible(want, playerKey(tag)))
 }
 
 export function parseDisplayScore(text?: string | null) {
   if (!text || /dq|w\s*[-–]\s*l|l\s*[-–]\s*w/i.test(text)) return undefined
-  const match = text.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/)
+  const simple = text.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/)
+  const named = text.trim().match(/^(.*?)\s+(\d+)\s*[-–]\s+(.*?)\s+(\d+)$/)
+  const match = simple ?? (named ? [named[0], named[2], named[4]] : null)
   if (!match) return undefined
   const p1 = Number(match[1])
   const p2 = Number(match[2])
@@ -403,16 +509,31 @@ function youtubeIdFromUrl(url?: string | null) {
 }
 
 export function playersMatch(match: Match, set: StartggSet) {
-  const slot1 = set.slots?.[0]
-  const slot2 = set.slots?.[1]
-  if (!slot1 || !slot2) return false
-  const forward = samePlayer(match.player1, slot1) && samePlayer(match.player2, slot2)
-  const reverse = samePlayer(match.player1, slot2) && samePlayer(match.player2, slot1)
+  const keys0 = sideKeys(set, 0)
+  const keys1 = sideKeys(set, 1)
+  if (!keys0.length || !keys1.length) return false
+  const want1 = playerKey(match.player1)
+  const want2 = playerKey(match.player2)
+  const forward = keys0.some((got) => keysCompatible(want1, got)) && keys1.some((got) => keysCompatible(want2, got))
+  const reverse = keys1.some((got) => keysCompatible(want1, got)) && keys0.some((got) => keysCompatible(want2, got))
   return forward || reverse
 }
 
 export function orientationFlipped(match: Match, set: StartggSet) {
-  return samePlayer(match.player1, set.slots?.[1]) && samePlayer(match.player2, set.slots?.[0])
+  const keys0 = sideKeys(set, 0)
+  const keys1 = sideKeys(set, 1)
+  const want1 = playerKey(match.player1)
+  const want2 = playerKey(match.player2)
+  return keys1.some((got) => keysCompatible(want1, got)) && keys0.some((got) => keysCompatible(want2, got))
+}
+
+function scoresAgree(match: Match, set: StartggSet) {
+  const scored = scoreFromSet(set)
+  if (!match.setScore || !scored) return false
+  const flipped = orientationFlipped(match, set)
+  const p1 = flipped ? scored.p2 : scored.p1
+  const p2 = flipped ? scored.p1 : scored.p2
+  return p1 === match.setScore.p1 && p2 === match.setScore.p2
 }
 
 export function pickBestSet(match: Match, sets: StartggSet[]) {
@@ -428,6 +549,9 @@ export function pickBestSet(match: Match, sets: StartggSet[]) {
 
   const byRound = byPlayers.filter((set) => roundsMatch(match.event, set.fullRoundText))
   if (byRound.length === 1) return byRound[0]
+  const pool = byRound.length ? byRound : byPlayers
+  const byScore = pool.filter((set) => scoresAgree(match, set))
+  if (byScore.length === 1) return byScore[0]
   return undefined
 }
 

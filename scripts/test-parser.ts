@@ -15,6 +15,7 @@ import {
   pickBestSet,
   pickTournament,
   roundKey,
+  searchQueriesForApi,
   searchQueryVariants,
   slugCandidates,
   tournamentFits,
@@ -245,6 +246,7 @@ console.log(gomlOk ? 'OK  ' : 'FAIL', 'GOML 2026 maps to Get On My Level 2026')
 
 const rejectWrong = [
   ['GOML X', 'Genesis X4', 'genesis-x4'],
+  ['GOML X', 'Get On My Level 2026 Canadian Fighting Game Championships', 'get-on-my-level-2026-canadian-fighting-game-championships'],
   ['2GG Kongo Saga', 'El Puerto Smash Saga #38', 'el-puerto-smash-saga-38'],
   ['2GGC: Civil War', 'Warhawk Weekly #48', 'warhawk-weekly-48'],
   ['Riptide 2025', 'Kent Combo 228 - Riptide Next Week! Splendid', 'kent-combo-228'],
@@ -352,6 +354,91 @@ const lmbmPick = pickTournament('LMBM 2026', [
 const lmbmPickOk = lmbmPick?.slug === 'tournament/let-s-make-big-moves-2026-7'
 if (!lmbmPickOk) failed += 1
 console.log(lmbmPickOk ? 'OK  ' : 'FAIL', 'LMBM 2026 maps to Lets Make BIG Moves 2026')
+
+const gomlXSlugOk = slugCandidates('GOML X').includes(
+  'tournament/get-on-my-level-x-canadian-fighting-game-championships',
+)
+if (!gomlXSlugOk) failed += 1
+console.log(gomlXSlugOk ? 'OK  ' : 'FAIL', 'GOML X slug puts X before the subtitle')
+
+const gomlXQuery = searchQueriesForApi('GOML X')
+const gomlXQueryOk =
+  gomlXQuery.includes('Get On My Level X') &&
+  gomlXQuery[0] === 'Get On My Level X' &&
+  !gomlXQuery.some((query, index) => index > 0 && query.toLowerCase() === gomlXQuery[0]?.toLowerCase())
+if (!gomlXQueryOk) failed += 1
+console.log(gomlXQueryOk ? 'OK  ' : 'FAIL', 'GOML X searches Get On My Level X before the long subtitle')
+
+const gomlXFit = tournamentFits(
+  'GOML X',
+  'Get On My Level X - Canadian Fighting Game Championships',
+  'tournament/get-on-my-level-x-canadian-fighting-game-championships',
+)
+if (!gomlXFit) failed += 1
+console.log(gomlXFit ? 'OK  ' : 'FAIL', 'GOML X matches Get On My Level X Canadian Fighting Game Championships')
+
+const gomlXPick = pickTournament('GOML X', [
+  { name: 'Genesis X4', slug: 'genesis-x4' },
+  {
+    name: 'Get On My Level X - Canadian Fighting Game Championships',
+    slug: 'tournament/get-on-my-level-x-canadian-fighting-game-championships',
+    startAt: Date.parse('2024-05-18T00:00:00Z') / 1000,
+  },
+], '2024-05-19')
+const gomlXPickOk = gomlXPick?.slug === 'tournament/get-on-my-level-x-canadian-fighting-game-championships'
+if (!gomlXPickOk) failed += 1
+console.log(gomlXPickOk ? 'OK  ' : 'FAIL', 'GOML X maps to Get On My Level X')
+
+const namedScore = parseDisplayScore('Gackt 0 - Sonix 3')
+const namedScoreOk = namedScore?.p1 === 0 && namedScore.p2 === 3
+if (!namedScoreOk) failed += 1
+console.log(namedScoreOk ? 'OK  ' : 'FAIL', 'parse named start.gg display score')
+
+const sparg0 = pickBestSet(
+  sampleMatch({ player1: 'SHADIC', player2: 'Spargo', event: 'TOP 8' }),
+  [
+    sampleSet({
+      fullRoundText: 'Losers Quarter-Final',
+      displayScore: 'SHADIC 3 - Sparg0 2',
+      slots: [
+        {
+          entrant: { id: 1, name: 'Stride | SHADIC', participants: [{ gamerTag: 'SHADIC' }] },
+          standing: { stats: { score: { value: 3 } } },
+        },
+        {
+          entrant: { id: 2, name: 'FaZe | Sparg0', participants: [{ gamerTag: 'Sparg0' }] },
+          standing: { stats: { score: { value: 2 } } },
+        },
+      ],
+    }),
+  ],
+)
+const sparg0Ok = sparg0?.slots?.[1]?.entrant?.name?.includes('Sparg0')
+if (!sparg0Ok) failed += 1
+console.log(sparg0Ok ? 'OK  ' : 'FAIL', 'match Spargo VOD to start.gg Sparg0')
+
+const gacktSet = pickBestSet(
+  sampleMatch({ player1: 'Gackt', player2: 'Sonix', event: 'LOSERS FINALS', setScore: { p1: 0, p2: 3 } }),
+  [
+    sampleSet({
+      fullRoundText: 'Losers Final',
+      displayScore: 'ZETA | Gackt 0 - LG | Sonix 3',
+      slots: [
+        {
+          entrant: { id: 1, name: 'ZETA | Gackt', participants: [{ gamerTag: 'Gackt' }] },
+          standing: { stats: { score: { value: 0 } } },
+        },
+        {
+          entrant: { id: 2, name: 'LG | Sonix', participants: [{ gamerTag: 'Sonix' }] },
+          standing: { stats: { score: { value: 3 } } },
+        },
+      ],
+    }),
+  ],
+)
+const gacktOk = gacktSet?.fullRoundText === 'Losers Final'
+if (!gacktOk) failed += 1
+console.log(gacktOk ? 'OK  ' : 'FAIL', 'match S Factor losers finals Gackt vs Sonix')
 
 const lmbmSlugOk = numberedSlugCandidates('LMBM 2026').includes('tournament/let-s-make-big-moves-2026-7')
 if (!lmbmSlugOk) failed += 1

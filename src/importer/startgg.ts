@@ -7,8 +7,9 @@ import {
   numberedSlugCandidates,
   pickBestSet,
   pickTournament,
+  preferredSlugCandidates,
   searchNameForTournament,
-  searchQueryVariants,
+  searchQueriesForApi,
   slugCandidates,
   tournamentFits,
   type StartggSet,
@@ -17,7 +18,8 @@ import {
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
 const STATE_VERSION = 3
-const MISS_VERSION = 2
+const MISS_VERSION = 3
+export const MATCHER_VERSION = 1
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {
@@ -132,7 +134,7 @@ query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
           entrant {
             id
             name
-            participants { gamerTag player { gamerTag } }
+            participants { gamerTag prefix player { gamerTag } }
           }
           standing { stats { score { value } } }
         }
@@ -166,7 +168,7 @@ export type StartggState = {
   version?: number
   missVersion?: number
   misses: Record<string, string>
-  done: Record<string, { slug: string; eventId: string; at: string }>
+  done: Record<string, { slug: string; eventId: string; at: string; matcherVersion?: number }>
 }
 
 function tournamentKey(name: string) {
@@ -314,7 +316,7 @@ async function searchTournaments(
     found.push(...(data.tournaments?.nodes ?? []))
   }
 
-  const queries = searchQueryVariants(name).slice(0, 6)
+  const queries = searchQueriesForApi(name).slice(0, 8)
   for (const query of queries) {
     await search(query, false)
     if (foundTournament(found, name, aroundDate)) return mergeTournaments(found)
@@ -326,6 +328,7 @@ async function searchTournaments(
 
   const tried = new Set<string>()
   const slugs = [
+    ...preferredSlugCandidates(name).slice(0, 8),
     ...slugCandidates(name).filter((slug) => slug.startsWith('tournament/')).slice(0, 6),
     ...numberedSlugCandidates(name, 12),
   ]
@@ -339,13 +342,19 @@ async function searchTournaments(
   return mergeTournaments(found)
 }
 
+function setsHavePlayerNames(sets: StartggSet[]) {
+  return sets.some((set) =>
+    set.slots?.some((slot) => Boolean(slot?.entrant?.name || slot?.entrant?.participants?.some((part) => part.gamerTag))),
+  )
+}
+
 async function listEventSets(token: string, eventId: string, options: GraphqlOptions = {}) {
   const sets: StartggSet[] = []
   let page = 1
   let totalPages = 1
-  let perPage = 32
+  let perPage = 20
   const deadline = options.deadline ?? Number.POSITIVE_INFINITY
-  while (page <= totalPages && page <= 120) {
+  while (page <= totalPages && page <= 200) {
     if (Date.now() >= deadline) {
       options.onStatus?.(`Time budget reached after ${sets.length} sets. Using this batch so far.`)
       return { sets, truncated: true }
@@ -357,6 +366,14 @@ async function listEventSets(token: string, eventId: string, options: GraphqlOpt
       const data = await graphql<EventSetsData>(token, EVENT_SETS, { eventId, page, perPage }, options)
       totalPages = data.event?.sets?.pageInfo?.totalPages ?? page
       sets.push(...(data.event?.sets?.nodes ?? []))
+      if (page === 1 && sets.length > 0 && !setsHavePlayerNames(sets) && perPage > 8) {
+        perPage = 8
+        page = 1
+        totalPages = 1
+        sets.length = 0
+        options.onStatus?.('start.gg returned sets without player names. Retrying with smaller pages.')
+        continue
+      }
       page += 1
     } catch (error) {
       if (error instanceof StartggBudgetError) {
@@ -410,8 +427,11 @@ function isPendingTournament(
   state: StartggState,
   options: { skipCached?: boolean; refresh?: boolean },
 ) {
-  if (options.skipCached && state.done[key] && !options.refresh) return false
-  return shouldRetryMiss(state, key, Boolean(options.refresh))
+  if (options.refresh) return true
+  if (options.skipCached && state.done[key] && (state.done[key]?.matcherVersion ?? 0) >= MATCHER_VERSION) {
+    return false
+  }
+  return shouldRetryMiss(state, key, false)
 }
 
 export async function enrichFromStartgg(options: {
@@ -557,6 +577,10 @@ export async function enrichFromStartgg(options: {
       })
       continue
     }
+    options.onProgress?.({
+      tournament: query,
+      message: `Matching ${group.length} VODs against ${sets.length} start.gg sets${setsHavePlayerNames(sets) ? '' : ' (no player names on sets)'}…`,
+    })
     let groupUpdated = 0
     let timedOut = truncated
     for (const match of group) {
@@ -609,6 +633,7 @@ export async function enrichFromStartgg(options: {
       slug: tournament.slug ?? String(tournament.id),
       eventId: String(event.id),
       at: new Date().toISOString(),
+      matcherVersion: MATCHER_VERSION,
     }
     await options.onCheckpoint?.(state)
     options.onProgress?.({
