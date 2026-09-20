@@ -7,15 +7,27 @@ type Props = {
   onChange: (value: string) => void
 }
 
+const ITEM_HEIGHT = 36
+const LIST_MAX_HEIGHT = 420
+
 export function SuggestInput({ label, value, options, onChange }: Props) {
   const [open, setOpen] = useState(false)
+  const [scrollTop, setScrollTop] = useState(0)
   const ignoreBlur = useRef(false)
+  const hoveringList = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const fieldRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   const suggestions = useMemo(() => {
     const q = value.trim().toLowerCase()
-    return options.filter((option) => option.toLowerCase().includes(q)).slice(0, 120)
+    if (!q) return options
+    return options.filter((option) => option.toLowerCase().includes(q))
   }, [options, value])
+
+  useEffect(() => {
+    setScrollTop(0)
+    if (listRef.current) listRef.current.scrollTop = 0
+  }, [value, open])
 
   useEffect(() => {
     const onUp = () => {
@@ -31,12 +43,20 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
       const target = event.target as Node | null
       if (!target) return
       if (fieldRef.current?.contains(target)) return
+      if (hoveringList.current) return
       if (target === document.body || target === document.documentElement) return
       setOpen(false)
     }
     document.addEventListener('focusin', onFocusIn)
     return () => document.removeEventListener('focusin', onFocusIn)
   }, [open])
+
+  const listHeight = Math.min(LIST_MAX_HEIGHT, Math.max(ITEM_HEIGHT, suggestions.length * ITEM_HEIGHT))
+  const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 6)
+  const visibleCount = Math.ceil(LIST_MAX_HEIGHT / ITEM_HEIGHT) + 12
+  const visible = suggestions.slice(start, start + visibleCount)
+  const padTop = start * ITEM_HEIGHT
+  const padBottom = Math.max(0, (suggestions.length - start - visible.length) * ITEM_HEIGHT)
 
   return (
     <div className="field" ref={fieldRef}>
@@ -52,7 +72,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
           onFocus={() => setOpen(true)}
           onBlur={() => {
             window.setTimeout(() => {
-              if (document.activeElement === inputRef.current || ignoreBlur.current) return
+              if (document.activeElement === inputRef.current || ignoreBlur.current || hoveringList.current) return
               setOpen(false)
             }, 0)
           }}
@@ -60,12 +80,29 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
         />
       </label>
       {open && suggestions.length > 0 && (
-        <ul className="suggest-list" onMouseDown={() => { ignoreBlur.current = true }}>
-          {suggestions.map((option) => (
-            <li key={option}>
+        <ul
+          ref={listRef}
+          className="suggest-list"
+          style={{ height: listHeight }}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+          onMouseEnter={() => {
+            hoveringList.current = true
+          }}
+          onMouseLeave={() => {
+            hoveringList.current = false
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            ignoreBlur.current = true
+          }}
+        >
+          {padTop > 0 && <li aria-hidden className="suggest-spacer" style={{ height: padTop }} />}
+          {visible.map((option) => (
+            <li key={option} style={{ height: ITEM_HEIGHT }}>
               <button
                 type="button"
-                onMouseDown={() => {
+                onMouseDown={(event) => {
+                  event.preventDefault()
                   ignoreBlur.current = true
                   onChange(option)
                   setOpen(false)
@@ -75,6 +112,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
               </button>
             </li>
           ))}
+          {padBottom > 0 && <li aria-hidden className="suggest-spacer" style={{ height: padBottom }} />}
         </ul>
       )}
     </div>

@@ -10,6 +10,7 @@ const LEADING_ROUND = /^(?:finals?|winners|losers|lowers|grand)\s+/i
 
 const TEAM_PREFIXES = [
   'echo fox mvg',
+  'echo fox mvg',
   'zeta division',
   'moist moguls',
   'panda global',
@@ -68,6 +69,7 @@ const TEAM_PREFIXES = [
   'oa',
   'fc',
   'lh',
+  'ktp',
 ].sort((a, b) => b.length - a.length)
 
 function aliasPattern(alias: string) {
@@ -92,6 +94,8 @@ function takeSponsorTag(raw: string) {
   let tag = pipeParts.at(-1) ?? raw
   const slash = tag.match(/^([A-Za-z0-9.]{2,16})[/／](.+)$/)
   if (slash) tag = slash[2].trim()
+  const closed = tag.match(/^([A-Za-z0-9.]{2,16})\]\s*(.+)$/)
+  if (closed) tag = closed[2].trim()
   return tag
 }
 
@@ -122,8 +126,62 @@ function takeLastDashTag(raw: string) {
   return raw
 }
 
+const LEADING_JUNK = /^[\s\-–—|/／\\:：;,.，、"'`]+/
+const TRAILING_JUNK = /[\s\-–—|/／\\:：;,.，、"'`]+$/
+const LEADING_CLOSERS = /^[\]}）)>＞】』」〉》]+/
+const TRAILING_CLOSERS = /[\]}）)>＞】』」〉》]+$/
+const TRAILING_OPENERS = /[\[{（(<＜【『「〈《]+$/
+const TRAILING_ROUND_TAG = /\s*\[(?:l|w|gf|wf|lf|wsf|lsf|wqf|lqf|f|sf|qf)\]\s*$/i
+const SIDE_PREFIX = /^(?:[wl]|win(?:ners?)?|los(?:ers?)?)\s*[:：]\s*/i
+
+function stripOuterJunk(raw: string) {
+  let name = raw.trim()
+  for (let i = 0; i < 8; i += 1) {
+    const next = name
+      .replace(TRAILING_ROUND_TAG, '')
+      .replace(SIDE_PREFIX, '')
+      .replace(LEADING_JUNK, '')
+      .replace(TRAILING_JUNK, '')
+      .replace(LEADING_CLOSERS, '')
+      .replace(TRAILING_CLOSERS, '')
+      .replace(TRAILING_OPENERS, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (next === name) break
+    name = next
+  }
+  return name
+}
+
+function stripEventBleed(raw: string) {
+  let name = raw
+    .replace(/[＜<][^＞>]{0,16}[＞>]/g, ' ')
+    .replace(/^[0-9]+["”']\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  name = stripOuterJunk(name)
+  if (/(?:マエスマ|ウメブラ|タミスマ|かがりび|カガラビ|スマバト|maesuma|ultcore)/i.test(raw)) {
+    name = name
+      .replace(/マエスマ['’]?[^\s\]]*(?:\]|$)/g, ' ')
+      .replace(/ウメブラ['’]?[^\s\]]*(?:\]|$)/g, ' ')
+      .replace(/タミスマ['’]?[^\s\]]*(?:\]|$)/g, ' ')
+      .replace(/\bmaesuma[^\s]*/gi, ' ')
+      .replace(/\bultcore\b[^\]]*(?:\]|$)/gi, ' ')
+      .replace(/\[[^\]]{1,16}\]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    name = stripOuterJunk(name)
+    const latin = raw.match(/[A-Za-z][A-Za-z0-9_]{1,15}$/)
+    if (latin && !/^(winners|losers|finals?)$/i.test(latin[0])) return latin[0]
+    const tokens = name.split(/\s+/).filter(Boolean)
+    if (tokens.length === 1) return tokens[0] ?? raw
+    if (tokens.length >= 2) return tokens.at(-1) ?? name
+  }
+  return name || raw
+}
+
 export function normalizePlayerName(raw: string) {
-  const original = raw.replace(/\s+/g, ' ').trim()
+  const original = stripOuterJunk(raw.replace(/\s+/g, ' '))
   if (!original) return ''
   const hadRound = new RegExp(ROUND_NOISE.source, 'i').test(original) || LEADING_ROUND.test(original)
 
@@ -144,10 +202,13 @@ export function normalizePlayerName(raw: string) {
   name = stripTeamPrefixes(name)
   const withoutChars = stripCharacterNames(name)
   name = withoutChars || name
-  name = name.replace(/^[\s\-–—|/／]+/, '').replace(/[\s\-–—|/／]+$/, '').replace(/\s+/g, ' ').trim()
+  name = stripOuterJunk(name.replace(/^[\s\-–—|/／]+/, '').replace(/[\s\-–—|/／]+$/, ''))
+  name = stripEventBleed(name)
+  name = stripOuterJunk(name)
 
   if (hadRound && name.split(/\s+/).length >= 3) {
     name = name.split(/\s+/).at(-1) ?? name
+    name = stripOuterJunk(name)
   }
 
   if (!name) return ''

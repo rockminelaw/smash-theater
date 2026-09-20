@@ -1,5 +1,6 @@
 import type { Match, MatchFilters } from '../types'
 import { namesMatch } from './format'
+import { normalizePlayerName } from '../importer/playerName'
 
 function charsFor(match: Match, side: 1 | 2) {
   return match.games.map((game) => (side === 1 ? game.p1Character : game.p2Character))
@@ -79,8 +80,11 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
 export function uniquePlayers(matches: Match[]) {
   const byKey = new Map<string, string>()
   for (const name of matches.flatMap((match) => [match.player1, match.player2])) {
-    const key = name.toLowerCase()
-    if (!byKey.has(key)) byKey.set(key, name)
+    const cleaned = normalizePlayerName(name) || name.trim()
+    if (!cleaned) continue
+    const key = cleaned.toLowerCase()
+    const current = byKey.get(key)
+    if (!current || cleaned.length < current.length) byKey.set(key, cleaned)
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b))
 }

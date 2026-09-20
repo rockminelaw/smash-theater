@@ -57,6 +57,20 @@ const names: Array<[string, string]> = [
   ['Finals LG MkLeo', 'MkLeo'],
   ['Shark Tank Winners Round 1 Tree', 'Tree'],
   ['Muffin from Mars', 'Muffin from Mars'],
+  ['] Hurt', 'Hurt'],
+  [']Hurt', 'Hurt'],
+  ['] Hurt [L]', 'Hurt'],
+  ['Hurt [L]', 'Hurt'],
+  ['] W:Hurt', 'Hurt'],
+  ['L:Hurt', 'Hurt'],
+  [': Charliedaking', 'Charliedaking'],
+  ['Hurt ）', 'Hurt'],
+  ['[A]ether', '[A]ether'],
+  ['+HOPE+', '+HOPE+'],
+  ["マエスマ'TOP Hurt", 'Hurt'],
+  ["マエスマ'U22[LTOP16]Hurt", 'Hurt'],
+  ['22"＜WF＞ Hurt', 'Hurt'],
+  ['KTP Hurt', 'Hurt'],
 ]
 
 console.log('\n--- names ---')
