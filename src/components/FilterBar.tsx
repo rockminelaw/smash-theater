@@ -8,10 +8,12 @@ type Props = {
   filters: MatchFilters
   players: string[]
   tags: string[]
+  dateMin?: string
+  dateMax?: string
   onChange: (filters: MatchFilters) => void
 }
 
-export function FilterBar({ filters, players, tags, onChange }: Props) {
+export function FilterBar({ filters, players, tags, dateMin, dateMax, onChange }: Props) {
   const update = (patch: Partial<MatchFilters>) => onChange({ ...filters, ...patch })
 
   const swap = () => {
@@ -73,6 +75,39 @@ export function FilterBar({ filters, players, tags, onChange }: Props) {
           options={tags}
           onChange={(tag) => update({ tag })}
         />
+      </div>
+      <div className="filter-row">
+        <label className="field">
+          <span>From</span>
+          <input
+            type="date"
+            value={filters.from ?? ''}
+            min={dateMin}
+            max={filters.to || dateMax}
+            onChange={(event) => update({ from: event.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span>To</span>
+          <input
+            type="date"
+            value={filters.to ?? ''}
+            min={filters.from || dateMin}
+            max={dateMax}
+            onChange={(event) => update({ to: event.target.value })}
+          />
+        </label>
+        <label className="field field-vod">
+          <span>YouTube URL</span>
+          <input
+            value={filters.vod ?? ''}
+            onChange={(event) => update({ vod: event.target.value })}
+            placeholder="Paste a YouTube link"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
       </div>
       {hasActiveFilters(filters) && (
         <button type="button" className="text-btn clear-filters" onClick={() => onChange(EMPTY_FILTERS)}>

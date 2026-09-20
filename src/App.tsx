@@ -5,6 +5,7 @@ import { AddPage } from './pages/AddPage'
 import { HomePage } from './pages/HomePage'
 import { StatsPage } from './pages/StatsPage'
 import { SuggestPage } from './pages/SuggestPage'
+import { EMPTY_FILTERS } from './lib/filters'
 import type { Match, MatchFilters, RoutePath } from './types'
 
 function parseHash() {
@@ -13,12 +14,16 @@ function parseHash() {
   const path = (pathPart || '/') as RoutePath
   const params = new URLSearchParams(query)
   const filters: MatchFilters = {
+    ...EMPTY_FILTERS,
     player1: params.get('p1') ?? '',
     player2: params.get('p2') ?? '',
     char1: params.get('c1') ?? '',
     char2: params.get('c2') ?? '',
     stage: params.get('stage') ?? '',
     tag: params.get('tag') ?? '',
+    from: params.get('from') ?? '',
+    to: params.get('to') ?? '',
+    vod: params.get('vod') ?? '',
   }
   return { path: (['/', '/add', '/stats', '/suggest'] as RoutePath[]).includes(path) ? path : '/', filters }
 }
@@ -31,6 +36,9 @@ function writeFilters(filters: MatchFilters) {
   if (filters.char2) params.set('c2', filters.char2)
   if (filters.stage) params.set('stage', filters.stage)
   if (filters.tag) params.set('tag', filters.tag)
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to) params.set('to', filters.to)
+  if (filters.vod) params.set('vod', filters.vod)
   const query = params.toString()
   const next = query ? `#/?${query}` : '#/'
   if (window.location.hash !== next) {
@@ -42,7 +50,8 @@ export default function App() {
   const initial = useMemo(() => parseHash(), [])
   const [path, setPath] = useState<RoutePath>(initial.path)
   const [filters, setFilters] = useState<MatchFilters>(initial.filters)
-  const [matches, setMatches] = useState<Match[]>(() => loadMatches())
+  const [matches, setMatches] = useState<Match[]>([])
+  const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
@@ -56,19 +65,29 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     void fetch('/archive.json')
       .then((response) => (response.ok ? response.json() : []))
       .then((data: unknown) => {
-        if (!Array.isArray(data)) return
-        setFileCatalog(data)
+        if (cancelled) return
+        if (Array.isArray(data)) setFileCatalog(data)
         setMatches(loadMatches())
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) setMatches(loadMatches())
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const onFilters = (next: MatchFilters) => {
-    setFilters(next)
-    writeFilters(next)
+    const complete = { ...EMPTY_FILTERS, ...next }
+    setFilters(complete)
+    writeFilters(complete)
   }
 
   const onImport = async (file: File) => {
@@ -83,23 +102,31 @@ export default function App() {
   return (
     <div className="app">
       <Header path={path} />
-      {path === '/' && (
-        <HomePage
-          matches={matches}
-          filters={filters}
-          onFilters={onFilters}
-          onDelete={(id) => setMatches(deleteMatch(id))}
-        />
+      {loading ? (
+        <main className="page loading-page">
+          <p className="loading-banner">Loading archive…</p>
+        </main>
+      ) : (
+        <>
+          {path === '/' && (
+            <HomePage
+              matches={matches}
+              filters={filters}
+              onFilters={onFilters}
+              onDelete={(id) => setMatches(deleteMatch(id))}
+            />
+          )}
+          {path === '/suggest' && <SuggestPage />}
+          {path === '/add' && (
+            <AddPage
+              matches={matches}
+              onSave={(match) => setMatches(addMatch(match))}
+              onImported={(incoming) => setMatches(mergeImportedMatches(incoming))}
+            />
+          )}
+          {path === '/stats' && <StatsPage matches={matches} />}
+        </>
       )}
-      {path === '/suggest' && <SuggestPage />}
-      {path === '/add' && (
-        <AddPage
-          matches={matches}
-          onSave={(match) => setMatches(addMatch(match))}
-          onImported={(incoming) => setMatches(mergeImportedMatches(incoming))}
-        />
-      )}
-      {path === '/stats' && <StatsPage matches={matches} />}
       <footer className="site-footer">
         <button type="button" className="text-btn" onClick={() => exportArchive(matches)}>
           Export JSON

@@ -126,27 +126,70 @@ function takeLastDashTag(raw: string) {
   return raw
 }
 
-const LEADING_JUNK = /^[\s\-–—|/／\\:：;,.，、"'`]+/
-const TRAILING_JUNK = /[\s\-–—|/／\\:：;,.，、"'`]+$/
+const LEADING_JUNK = /^[\s\-–—|/／\\:：;,.，、"'`!?#&*★☆※・·•∙‧~«»‹›@＾^×＊＆？。｢｣「」『』＜＞〈〉【】〔〕〖〗〝〟㍿]+/
+const TRAILING_JUNK = /[\s\-–—|/／\\:：;,.，、"'`!?#&*★☆※・·•∙‧~«»‹›@＾^×＊＆？。｢｣「」『』＜＞〈〉【】〔〕〖〗〝〟㍿]+$/
 const LEADING_CLOSERS = /^[\]}）)>＞】』」〉》]+/
 const TRAILING_CLOSERS = /[\]}）)>＞】』」〉》]+$/
 const TRAILING_OPENERS = /[\[{（(<＜【『「〈《]+$/
 const TRAILING_ROUND_TAG = /\s*\[(?:l|w|gf|wf|lf|wsf|lsf|wqf|lqf|f|sf|qf)\]\s*$/i
 const SIDE_PREFIX = /^(?:[wl]|win(?:ners?)?|los(?:ers?)?)\s*[:：]\s*/i
+const LEADING_WEEKLY_NOISE = /^(?:\d{2,6}\s*)?(?:[WL]?(?:GF|WF|LF|QF|SF|WSF|LSF|WQF|LQF))\s+/i
+const MATCHING_WRAPPERS: Array<[string, string]> = [
+  ['«', '»'],
+  ['‹', '›'],
+  ['“', '”'],
+  ['"', '"'],
+  ["'", "'"],
+  ['~', '~'],
+  ['*', '*'],
+  ['★', '★'],
+]
+
+function stripMatchingWrappers(raw: string) {
+  let name = raw
+  for (const [open, close] of MATCHING_WRAPPERS) {
+    if (name.length < 3) break
+    if (name.startsWith(open) && name.endsWith(close)) {
+      name = name.slice(open.length, name.length - close.length).trim()
+    }
+  }
+  return name
+}
+
+function stripUnmatchedOpeners(raw: string) {
+  if (raw.startsWith('[') && !raw.includes(']')) return raw.slice(1).trim()
+  if (raw.startsWith('{') && !raw.includes('}')) return raw.slice(1).trim()
+  if (raw.startsWith('(') && !raw.includes(')')) return raw.slice(1).trim()
+  return raw
+}
+
+function takeAtHandle(raw: string) {
+  const match = raw.match(/^@([A-Za-z0-9_]+)\b/)
+  if (!match?.[1]) return raw
+  const rest = raw.slice(match[0].length).trim()
+  if (!rest || /smash|side|final|winner|loser|round|game/i.test(rest)) return match[1]
+  return raw.replace(/^@/, '')
+}
 
 function stripOuterJunk(raw: string) {
-  let name = raw.trim()
+  let name = takeAtHandle(raw.trim()).replace(/「」|『』/g, ' ').replace(/\s+/g, ' ').trim()
   for (let i = 0; i < 8; i += 1) {
-    const next = name
-      .replace(TRAILING_ROUND_TAG, '')
-      .replace(SIDE_PREFIX, '')
-      .replace(LEADING_JUNK, '')
-      .replace(TRAILING_JUNK, '')
-      .replace(LEADING_CLOSERS, '')
-      .replace(TRAILING_CLOSERS, '')
-      .replace(TRAILING_OPENERS, '')
-      .replace(/\s+/g, ' ')
-      .trim()
+    let next = stripUnmatchedOpeners(
+      stripMatchingWrappers(
+        name
+          .replace(TRAILING_ROUND_TAG, '')
+          .replace(SIDE_PREFIX, '')
+          .replace(LEADING_WEEKLY_NOISE, '')
+          .replace(LEADING_JUNK, '')
+          .replace(TRAILING_JUNK, '')
+          .replace(LEADING_CLOSERS, '')
+          .replace(TRAILING_CLOSERS, '')
+          .replace(TRAILING_OPENERS, '')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      ),
+    )
+    if (next.startsWith('+') && !next.endsWith('+')) next = next.replace(/^\++/, '').trim()
     if (next === name) break
     name = next
   }
@@ -216,13 +259,20 @@ export function normalizePlayerName(raw: string) {
 
   if (!name) return ''
   if (/^\d{1,2}$/.test(name)) return ''
-  if (/^(winners|losers|lowers|grand|finals?|pools?|top\s*\d+)$/i.test(name)) return ''
+  if (!/\p{L}|\p{N}/u.test(name)) return ''
+  if (/^(winners|losers|lowers|grand|finals?|pools?|top\s*\d+|決勝)$/i.test(name)) return ''
   if (name.length > 32) return ''
   return name
 }
 
+const PLAYER_KEY_CACHE = new Map<string, string>()
+
 export function playerKey(name: string) {
-  return normalizePlayerName(name).toLowerCase()
+  const hit = PLAYER_KEY_CACHE.get(name)
+  if (hit !== undefined) return hit
+  const key = normalizePlayerName(name).toLowerCase()
+  PLAYER_KEY_CACHE.set(name, key)
+  return key
 }
 
 export function canonicalizePlayerNames<T extends { player1: string; player2: string }>(matches: T[]) {

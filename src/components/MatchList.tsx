@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Match } from '../types'
 import { MatchCard } from './MatchCard'
 
-const PAGE_SIZE = 6
+const PAGE_SIZE = 12
 
 type Props = {
   matches: Match[]
@@ -11,6 +11,9 @@ type Props = {
 
 export function MatchList({ matches, onDelete }: Props) {
   const [page, setPage] = useState(0)
+  useEffect(() => {
+    setPage(0)
+  }, [matches])
   const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE))
   const current = Math.min(page, pageCount - 1)
   const visible = useMemo(

@@ -30,6 +30,18 @@ export class StartggComplexityError extends Error {
   }
 }
 
+export class StartggBudgetError extends Error {
+  constructor(message = 'start.gg time budget reached') {
+    super(message)
+    this.name = 'StartggBudgetError'
+  }
+}
+
+type GraphqlOptions = {
+  deadline?: number
+  onStatus?: (message: string) => void
+}
+
 export type StartggProgress = {
   tournament: string
   message: string
@@ -172,18 +184,38 @@ export function pickUltimateEvent(events: TournamentNode['events']) {
   return best && best.score > -50000 ? best.event : undefined
 }
 
-async function graphql<T>(token: string, query: string, variables: Record<string, unknown>): Promise<T> {
+async function graphql<T>(
+  token: string,
+  query: string,
+  variables: Record<string, unknown>,
+  options: GraphqlOptions = {},
+): Promise<T> {
+  const deadline = options.deadline ?? Number.POSITIVE_INFINITY
   let lastError = 'start.gg request failed'
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    if (attempt > 0) await sleep(1000 * 2 ** attempt)
-    const response = await fetch(API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ query, variables }),
-    })
+    if (Date.now() >= deadline) throw new StartggBudgetError()
+    if (attempt > 0) {
+      const wait = Math.min(1000 * 2 ** attempt, Math.max(0, deadline - Date.now()))
+      options.onStatus?.(`Retrying start.gg request (attempt ${attempt + 1}/5)…`)
+      await sleep(wait)
+      if (Date.now() >= deadline) throw new StartggBudgetError()
+    }
+    let response: Response
+    try {
+      response = await fetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(25_000),
+      })
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'start.gg request failed'
+      options.onStatus?.(`start.gg request timed out or failed (${lastError}). Retrying…`)
+      continue
+    }
     const payload = (await response.json()) as {
       data?: T
       message?: string
@@ -195,24 +227,31 @@ async function graphql<T>(token: string, query: string, variables: Record<string
     }
     if (response.status === 429 || /rate limit/i.test(message)) {
       lastError = message
-      await sleep(65_000)
+      const wait = Math.min(65_000, Math.max(0, deadline - Date.now()))
+      options.onStatus?.(`Rate limited by start.gg. Waiting ${Math.ceil(wait / 1000)}s…`)
+      await sleep(wait)
       continue
     }
     if (!response.ok) {
       lastError = message
-      if (response.status >= 500) continue
+      if (response.status >= 500) {
+        options.onStatus?.(`start.gg returned ${response.status}. Retrying…`)
+        continue
+      }
       throw new Error(message)
     }
     if (payload.errors?.length) {
       lastError = message
       if (/rate limit/i.test(message)) {
-        await sleep(65_000)
+        const wait = Math.min(65_000, Math.max(0, deadline - Date.now()))
+        options.onStatus?.(`Rate limited by start.gg. Waiting ${Math.ceil(wait / 1000)}s…`)
+        await sleep(wait)
         continue
       }
       throw new Error(message)
     }
     if (!payload.data) throw new Error(message)
-    await sleep(800)
+    await sleep(Math.min(800, Math.max(0, deadline - Date.now())))
     return payload.data
   }
   throw new StartggRateLimitError(lastError)
@@ -235,14 +274,16 @@ function mergeTournaments(nodes: TournamentNode[]) {
   return [...byId.values()]
 }
 
-async function searchTournaments(token: string, name: string) {
+async function searchTournaments(token: string, name: string, options: GraphqlOptions = {}) {
   const found: TournamentNode[] = []
   const queries = expandSearchQueries(name)
   for (const query of queries) {
+    options.onStatus?.(`Searching start.gg for "${query}"…`)
     const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
       token,
       SEARCH_TOURNAMENTS,
       { name: query },
+      options,
     )
     found.push(...(data.tournaments?.nodes ?? []))
   }
@@ -255,43 +296,67 @@ async function searchTournaments(token: string, name: string) {
   }
   for (const slug of slugs) {
     try {
-      const bySlug = await graphql<{ tournament?: TournamentNode | null }>(token, TOURNAMENT_BY_SLUG, { slug })
+      const bySlug = await graphql<{ tournament?: TournamentNode | null }>(
+        token,
+        TOURNAMENT_BY_SLUG,
+        { slug },
+        options,
+      )
       if (bySlug.tournament) found.push(bySlug.tournament)
-    } catch {
+    } catch (error) {
+      if (error instanceof StartggBudgetError || error instanceof StartggRateLimitError) throw error
       // Slug guesses are optional.
     }
   }
   return mergeTournaments(found)
 }
 
-async function listEventSets(token: string, eventId: string) {
+async function listEventSets(token: string, eventId: string, options: GraphqlOptions = {}) {
   const sets: StartggSet[] = []
   let page = 1
   let totalPages = 1
   let perPage = 32
+  const deadline = options.deadline ?? Number.POSITIVE_INFINITY
   while (page <= totalPages && page <= 120) {
+    if (Date.now() >= deadline) {
+      options.onStatus?.(`Time budget reached after ${sets.length} sets. Using this batch so far.`)
+      return { sets, truncated: true }
+    }
+    options.onStatus?.(
+      `Fetching sets page ${page}${totalPages > 1 ? `/${totalPages}` : ''} (${sets.length} so far)…`,
+    )
     try {
-      const data = await graphql<EventSetsData>(token, EVENT_SETS, { eventId, page, perPage })
+      const data = await graphql<EventSetsData>(token, EVENT_SETS, { eventId, page, perPage }, options)
       totalPages = data.event?.sets?.pageInfo?.totalPages ?? page
       sets.push(...(data.event?.sets?.nodes ?? []))
       page += 1
     } catch (error) {
+      if (error instanceof StartggBudgetError) {
+        options.onStatus?.(`Time budget reached after ${sets.length} sets. Using this batch so far.`)
+        return { sets, truncated: true }
+      }
       if (error instanceof StartggComplexityError && perPage > 8) {
         perPage = Math.max(8, Math.floor(perPage / 2))
         page = 1
         totalPages = 1
         sets.length = 0
+        options.onStatus?.(`Query too heavy. Retrying this event at ${perPage} sets per page.`)
         continue
       }
       throw error
     }
   }
-  return sets
+  return { sets, truncated: false }
 }
 
-async function hydrateSetGames(token: string, set: StartggSet) {
+async function hydrateSetGames(token: string, set: StartggSet, options: GraphqlOptions = {}) {
   if (!set.id || (set.games && set.games.length > 0)) return set
-  const data = await graphql<{ set?: { games?: StartggSet['games'] } }>(token, SET_GAMES, { id: String(set.id) })
+  const data = await graphql<{ set?: { games?: StartggSet['games'] } }>(
+    token,
+    SET_GAMES,
+    { id: String(set.id) },
+    options,
+  )
   return { ...set, games: data.set?.games ?? set.games }
 }
 
@@ -387,10 +452,21 @@ export async function enrichFromStartgg(options: {
     })
 
     searched += 1
+    const request = {
+      deadline,
+      onStatus: (message: string) => options.onProgress?.({ tournament: query, message }),
+    }
     let nodes: TournamentNode[]
     try {
-      nodes = await searchTournaments(options.token, query)
+      nodes = await searchTournaments(options.token, query, request)
     } catch (error) {
+      if (error instanceof StartggBudgetError) {
+        options.onProgress?.({
+          tournament: query,
+          message: 'Time budget reached. Saving this batch; run again to continue.',
+        })
+        break
+      }
       if (error instanceof StartggRateLimitError) {
         options.onProgress?.({
           tournament: query,
@@ -423,9 +499,19 @@ export async function enrichFromStartgg(options: {
       message: `Fetching sets from ${tournament.name} / ${event.name}…`,
     })
     let sets: StartggSet[]
+    let truncated = false
     try {
-      sets = await listEventSets(options.token, String(event.id))
+      const listed = await listEventSets(options.token, String(event.id), request)
+      sets = listed.sets
+      truncated = listed.truncated
     } catch (error) {
+      if (error instanceof StartggBudgetError) {
+        options.onProgress?.({
+          tournament: query,
+          message: 'Time budget reached. Saving this batch; run again to continue.',
+        })
+        break
+      }
       if (error instanceof StartggRateLimitError) {
         options.onProgress?.({
           tournament: query,
@@ -440,7 +526,7 @@ export async function enrichFromStartgg(options: {
       continue
     }
     let groupUpdated = 0
-    let timedOut = false
+    let timedOut = truncated
     for (const match of group) {
       if (Date.now() >= deadline) {
         timedOut = true
@@ -453,9 +539,13 @@ export async function enrichFromStartgg(options: {
       let detailed = picked
       try {
         if (current.games.some((game) => !game.stage)) {
-          detailed = await hydrateSetGames(options.token, picked)
+          detailed = await hydrateSetGames(options.token, picked, request)
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof StartggBudgetError) {
+          timedOut = true
+          break
+        }
         detailed = picked
       }
       const mapped = mapStartggSet(current, detailed)

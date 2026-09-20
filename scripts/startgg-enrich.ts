@@ -68,7 +68,9 @@ const result = await enrichFromStartgg({
   minutes,
   since,
   tournament: tournamentFilter,
-  onProgress: (progress) => console.log(`[${progress.tournament}] ${progress.message}`),
+  onProgress: (progress) => {
+    console.log(`[${progress.tournament}] ${progress.message}`)
+  },
   onWrite: async (matches) => {
     await writeJson(ARCHIVE, matches)
   },

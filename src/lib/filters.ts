@@ -1,6 +1,5 @@
 import type { Match, MatchFilters } from '../types'
-import { namesMatch } from './format'
-import { normalizePlayerName } from '../importer/playerName'
+import { namesMatch, parseVod, youtubeIdFromInput } from './format'
 
 function charsFor(match: Match, side: 1 | 2) {
   return match.games.map((game) => (side === 1 ? game.p1Character : game.p2Character))
@@ -17,18 +16,33 @@ export const EMPTY_FILTERS: MatchFilters = {
   char2: '',
   stage: '',
   tag: '',
+  from: '',
+  to: '',
+  vod: '',
+}
+
+function vodMatches(match: Match, query: string) {
+  const needle = query.trim()
+  if (!needle) return true
+  if (match.vodUrl.toLowerCase().includes(needle.toLowerCase())) return true
+  const wantId = youtubeIdFromInput(needle)
+  if (!wantId) return false
+  const haveId = parseVod(match.vodUrl).id ?? (match.id.startsWith('yt-') ? match.id.slice(3) : '')
+  return haveId === wantId
 }
 
 export function hasActiveFilters(filters: MatchFilters) {
-  return Object.values(filters).some(Boolean)
+  return Object.values({ ...EMPTY_FILTERS, ...filters }).some(Boolean)
 }
 
 export function filterMatches(matches: Match[], filters: MatchFilters) {
+  const active = { ...EMPTY_FILTERS, ...filters }
+  if (!hasActiveFilters(active)) return matches
   return matches.filter((match) => {
     const p1 = match.player1
     const p2 = match.player2
-    const wantP1 = filters.player1.trim()
-    const wantP2 = filters.player2.trim()
+    const wantP1 = active.player1.trim()
+    const wantP2 = active.player2.trim()
 
     let side1: 1 | 2 | null = null
     let side2: 1 | 2 | null = null
@@ -54,24 +68,28 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
       else return false
     }
 
-    if (filters.char1) {
+    if (active.char1) {
       const sides = side1 ? [side1] : ([1, 2] as const)
-      const found = sides.some((side) => charsFor(match, side).includes(filters.char1))
+      const found = sides.some((side) => charsFor(match, side).includes(active.char1))
       if (!found) return false
     }
 
-    if (filters.char2) {
+    if (active.char2) {
       const sides = side2 ? [side2] : ([1, 2] as const)
-      const found = sides.some((side) => charsFor(match, side).includes(filters.char2))
+      const found = sides.some((side) => charsFor(match, side).includes(active.char2))
       if (!found) return false
     }
 
-    if (filters.stage && !stagesFor(match).includes(filters.stage)) return false
+    if (active.stage && !stagesFor(match).includes(active.stage)) return false
 
-    if (filters.tag) {
+    if (active.tag) {
       const haystack = `${match.tournament} ${match.event} ${match.notes ?? ''}`
-      if (!namesMatch(haystack, filters.tag)) return false
+      if (!namesMatch(haystack, active.tag)) return false
     }
+
+    if (active.from && match.date < active.from) return false
+    if (active.to && match.date > active.to) return false
+    if (active.vod.trim() && !vodMatches(match, active.vod)) return false
 
     return true
   })
@@ -79,12 +97,14 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
 
 export function uniquePlayers(matches: Match[]) {
   const byKey = new Map<string, string>()
-  for (const name of matches.flatMap((match) => [match.player1, match.player2])) {
-    const cleaned = normalizePlayerName(name) || name.trim()
-    if (!cleaned) continue
-    const key = cleaned.toLowerCase()
-    const current = byKey.get(key)
-    if (!current || cleaned.length < current.length) byKey.set(key, cleaned)
+  for (const match of matches) {
+    for (const name of [match.player1, match.player2]) {
+      const cleaned = name.trim()
+      if (!cleaned) continue
+      const key = cleaned.toLowerCase()
+      const current = byKey.get(key)
+      if (!current || cleaned.length < current.length) byKey.set(key, cleaned)
+    }
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b))
 }

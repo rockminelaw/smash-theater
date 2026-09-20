@@ -6,25 +6,48 @@ export type VodInfo = {
   thumbnail?: string
 }
 
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
+
+function youtubeHost(hostname: string) {
+  return hostname.replace(/^(www|m|music)\./, '')
+}
+
+export function youtubeIdFromInput(raw: string) {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  if (YOUTUBE_ID.test(trimmed)) return trimmed
+
+  const withProtocol =
+    /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed.replace(/^\/\//, '')}`
+  try {
+    const parsed = new URL(withProtocol)
+    const host = youtubeHost(parsed.hostname)
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.split('/').filter(Boolean)[0]
+      return id && YOUTUBE_ID.test(id) ? id : undefined
+    }
+    if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      const fromQuery = parsed.searchParams.get('v')
+      if (fromQuery && YOUTUBE_ID.test(fromQuery)) return fromQuery
+      const parts = parsed.pathname.split('/').filter(Boolean)
+      const nested = parts[0] && ['shorts', 'live', 'embed', 'v'].includes(parts[0]) ? parts[1] : undefined
+      return nested && YOUTUBE_ID.test(nested) ? nested : undefined
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
 export function parseVod(url: string): VodInfo {
+  const id = youtubeIdFromInput(url)
+  if (id) {
+    return { type: 'youtube', id, thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg` }
+  }
+
   try {
     const parsed = new URL(url)
-
-    if (parsed.hostname.includes('youtu.be')) {
-      const id = parsed.pathname.replace('/', '')
-      return { type: 'youtube', id, thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg` }
-    }
-
-    if (parsed.hostname.includes('youtube.com')) {
-      const id = parsed.searchParams.get('v') ?? parsed.pathname.split('/').filter(Boolean).pop()
-      if (id) {
-        return { type: 'youtube', id, thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg` }
-      }
-    }
-
-    if (parsed.hostname.includes('twitch.tv')) {
-      return { type: 'twitch' }
-    }
+    if (parsed.hostname.includes('twitch.tv')) return { type: 'twitch' }
   } catch {
     return { type: 'other' }
   }
@@ -64,7 +87,8 @@ export function setScore(
 export function namesMatch(value: string, query: string) {
   const needle = query.trim().toLowerCase()
   if (!needle) return false
-  if (value.toLowerCase().includes(needle)) return true
+  const haystack = value.toLowerCase()
+  if (haystack.includes(needle)) return true
   const tag = playerKey(value)
   const queryTag = playerKey(query)
   return Boolean(tag && queryTag && (tag.includes(queryTag) || queryTag.includes(tag)))

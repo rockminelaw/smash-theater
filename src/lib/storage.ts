@@ -7,7 +7,7 @@ const STORAGE_KEY = 'smash-theater-matches-v1'
 let fileCatalog: Match[] = []
 
 export function setFileCatalog(matches: Match[]) {
-  fileCatalog = matches
+  fileCatalog = matches.map((match) => ({ ...match, custom: false }))
 }
 
 function readCustom(): Match[] {
@@ -29,15 +29,27 @@ function writeCustom(matches: Match[]) {
   }
 }
 
+function sortMatches(matches: Match[]) {
+  return [...matches].sort((a, b) => b.date.localeCompare(a.date) || a.player1.localeCompare(b.player1))
+}
+
 export function loadMatches() {
-  const custom = sanitizeMatches(readCustom())
+  const catalog = fileCatalog.length ? fileCatalog : SEED_MATCHES
+  const stored = readCustom()
+  if (!stored.length) return catalog
+
+  const catalogIds = new Set(catalog.map((match) => match.id))
+  const custom = stored.filter((match) => !catalogIds.has(match.id))
+  if (custom.length < stored.length) {
+    try {
+      writeCustom(custom)
+    } catch {
+      // Keep the overlay in memory even if the browser cannot rewrite storage.
+    }
+  }
+  if (!custom.length) return catalog
   const customIds = new Set(custom.map((match) => match.id))
-  const fromFiles = sanitizeMatches([...fileCatalog, ...SEED_MATCHES]).filter(
-    (match) => !customIds.has(match.id),
-  )
-  return [...custom, ...fromFiles].sort(
-    (a, b) => b.date.localeCompare(a.date) || a.player1.localeCompare(b.player1),
-  )
+  return sortMatches([...custom, ...catalog.filter((match) => !customIds.has(match.id))])
 }
 
 export function mergeImportedMatches(incoming: Match[]) {

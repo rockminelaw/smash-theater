@@ -65,7 +65,7 @@ function toMatch(
     games: applySetDetails(parsedToGames(parsed), details),
     setScore: details.score,
     notes: channelName,
-    custom: true,
+    custom: false,
   })
 }
 

@@ -28,7 +28,18 @@ export function CharacterChip({ character, size = 'md', winner }: Props) {
       title={character.name}
       style={{ background: character.color, color: chipTextColor(character.color) }}
     >
-      {character.short}
+      <img
+        className="chip-icon"
+        src={`/stock/${character.id}.png`}
+        alt=""
+        width={size === 'sm' ? 16 : 20}
+        height={size === 'sm' ? 16 : 20}
+        loading="lazy"
+        onError={(event) => {
+          event.currentTarget.style.display = 'none'
+        }}
+      />
+      <span className="chip-label">{character.short}</span>
     </span>
   )
 }

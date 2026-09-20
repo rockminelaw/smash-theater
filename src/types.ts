@@ -39,6 +39,9 @@ export interface MatchFilters {
   char2: string
   stage: string
   tag: string
+  from: string
+  to: string
+  vod: string
 }
 
 export type RoutePath = '/' | '/add' | '/stats' | '/suggest'

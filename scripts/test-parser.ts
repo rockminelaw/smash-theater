@@ -1,6 +1,8 @@
 import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
+import { EMPTY_FILTERS, filterMatches } from '../src/lib/filters.ts'
+import { parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
 import {
   applyStartggSet,
   isSearchableTournament,
@@ -82,6 +84,19 @@ const names: Array<[string, string]> = [
   ['Chez Momocon', 'Chez'],
   ['Zebra Momocon', 'Zebra'],
   ['2019 Ally', 'Ally'],
+  ['!!!', ''],
+  ['# 1894QF Samsora', 'Samsora'],
+  ['& Gackt', 'Gackt'],
+  ['«ひー»', 'ひー'],
+  ['・ドストライク', 'ドストライク'],
+  ['[ BK SAS', 'BK SAS'],
+  ['~Neos~', 'Neos'],
+  ['*Star*', 'Star'],
+  ['@ChaseTheLux Smash', 'ChaseTheLux'],
+  ['@pinkbombino91', 'pinkbombino91'],
+  ['＊インダス', 'インダス'],
+  ['「」 +きつね', 'きつね'],
+  ['＜決勝', ''],
 ]
 
 console.log('\n--- names ---')
@@ -264,6 +279,40 @@ const gomlDated = pickTournament(
 const gomlDatedOk = gomlDated?.slug === 'tournament/get-on-my-level-2026-canadian-fighting-game-championships'
 if (!gomlDatedOk) failed += 1
 console.log(gomlDatedOk ? 'OK  ' : 'FAIL', 'GOML 2026 prefers the 2026 start.gg event')
+
+console.log('\n--- vod / date filters ---')
+const vodIdCases: Array<[string, string | undefined]> = [
+  ['https://www.youtube.com/watch?v=abcdefghijk&t=12', 'abcdefghijk'],
+  ['https://youtu.be/abcdefghijk?t=30', 'abcdefghijk'],
+  ['https://www.youtube.com/shorts/abcdefghijk', 'abcdefghijk'],
+  ['https://www.youtube.com/live/abcdefghijk', 'abcdefghijk'],
+  ['www.youtube.com/watch?v=abcdefghijk', 'abcdefghijk'],
+  ['abcdefghijk', 'abcdefghijk'],
+  ['Hurt', undefined],
+]
+for (const [input, expected] of vodIdCases) {
+  const got = youtubeIdFromInput(input)
+  const parsed = parseVod(input.startsWith('http') || input.startsWith('www.') ? (input.startsWith('http') ? input : `https://${input}`) : input)
+  const ok = got === expected && (expected ? parsed.id === expected : parsed.type !== 'youtube' || input === 'Hurt')
+  if (!ok) failed += 1
+  console.log(ok ? 'OK  ' : 'FAIL', JSON.stringify(input), got, parsed)
+}
+
+const dated = sampleMatch()
+const linkHit = filterMatches([dated], { ...EMPTY_FILTERS, vod: 'https://youtu.be/abcdefghijk' })
+const linkMiss = filterMatches([dated], { ...EMPTY_FILTERS, vod: 'https://youtu.be/zzzzzzzzzzz' })
+const inRange = filterMatches([dated], { ...EMPTY_FILTERS, from: '2024-08-01', to: '2024-08-01' })
+const before = filterMatches([dated], { ...EMPTY_FILTERS, to: '2024-07-31' })
+const after = filterMatches([dated], { ...EMPTY_FILTERS, from: '2024-08-02' })
+const linkHitOk = linkHit.length === 1
+const linkMissOk = linkMiss.length === 0
+const rangeOk = inRange.length === 1 && before.length === 0 && after.length === 0
+if (!linkHitOk) failed += 1
+if (!linkMissOk) failed += 1
+if (!rangeOk) failed += 1
+console.log(linkHitOk ? 'OK  ' : 'FAIL', 'youtu.be paste matches watch URL')
+console.log(linkMissOk ? 'OK  ' : 'FAIL', 'unknown YouTube id matches nothing')
+console.log(rangeOk ? 'OK  ' : 'FAIL', 'date range keeps the set on 2024-08-01')
 
 if (failed) {
   console.error(`\n${failed} tests failed`)

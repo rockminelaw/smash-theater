@@ -166,6 +166,17 @@ a {
   border-bottom-color: var(--purple);
 }
 
+.field input[type='date'] {
+  color-scheme: dark;
+  min-width: 10.5rem;
+}
+
+.field-vod {
+  min-width: min(28rem, 100%);
+  flex: 1 1 18rem;
+  max-width: 36rem;
+}
+
 .vs-button {
   width: 46px;
   height: 46px;
@@ -262,6 +273,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.22rem;
   border-radius: 999px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -272,14 +284,27 @@ a {
   min-width: 34px;
   height: 22px;
   font-size: 0.62rem;
-  padding: 0 0.35rem;
+  padding: 0 0.35rem 0 0.18rem;
 }
 
 .chip-md {
   min-width: 42px;
   height: 28px;
   font-size: 0.7rem;
-  padding: 0 0.4rem;
+  padding: 0 0.45rem 0 0.22rem;
+}
+
+.chip-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+  image-rendering: auto;
+}
+
+.chip-sm .chip-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .chip-unknown {
@@ -751,6 +776,18 @@ a {
 .empty-inline {
   grid-column: 1 / -1;
   color: var(--muted);
+}
+
+.loading-page {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+}
+
+.loading-banner {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
 }
 
 @media (max-width: 860px) {
