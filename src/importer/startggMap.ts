@@ -90,7 +90,9 @@ export function namesSimilar(a: string, b: string) {
 const TOURNAMENT_ALIASES: Array<[string, string]> = [
   ['goml', 'Get On My Level'],
   ['ssc', 'Super Smash Con'],
+  ['lmbm', "Let's Make BIG Moves"],
   ['lmbm', "Let's Make Big Moves"],
+  ['lets make big moves', "Let's Make BIG Moves"],
   ['lets make big moves', "Let's Make Big Moves"],
   ['ufa', 'Ultimate Fighting Arena'],
   ['2ggc', '2GGC'],
@@ -127,17 +129,80 @@ const TOURNAMENT_STOP = new Set([
   'my',
 ])
 
+function aliasHits(name: string, acronym: string) {
+  const lower = name.toLowerCase()
+  const ac = acronym.toLowerCase()
+  if (lower === ac || lower.startsWith(`${ac} `) || lower.startsWith(`${ac}:`)) return true
+  const folded = foldKey(name)
+  const acFold = foldKey(acronym)
+  if (acFold.length < 3) return false
+  if (folded === acFold) return true
+  return folded.startsWith(acFold) && /^\d+$/.test(folded.slice(acFold.length))
+}
+
+function remainderAfterAlias(name: string, acronym: string) {
+  const lower = name.toLowerCase()
+  const ac = acronym.toLowerCase()
+  if (lower === ac) return ''
+  if (lower.startsWith(`${ac} `) || lower.startsWith(`${ac}:`)) return name.slice(ac.length)
+  const rest = foldKey(name).slice(foldKey(acronym).length)
+  return rest ? ` ${rest}` : ''
+}
+
+function uniqueQueries(queries: string[]) {
+  return [...new Set(queries.map((query) => query.replace(/\s+/g, ' ').trim()).filter(Boolean))]
+}
+
 export function expandSearchQueries(name: string) {
   const cleaned = searchNameForTournament(name)
   const queries = [cleaned]
-  const lower = cleaned.toLowerCase()
   for (const [acronym, expanded] of TOURNAMENT_ALIASES) {
-    if (lower === acronym || lower.startsWith(`${acronym} `) || lower.startsWith(`${acronym}:`)) {
-      queries.push(expanded)
-      queries.push(`${expanded}${cleaned.slice(acronym.length)}`)
-    }
+    if (!aliasHits(cleaned, acronym)) continue
+    queries.push(expanded)
+    queries.push(`${expanded}${remainderAfterAlias(cleaned, acronym)}`)
   }
-  return [...new Set(queries.map((query) => query.replace(/\s+/g, ' ').trim()).filter(Boolean))]
+  return uniqueQueries(queries)
+}
+
+export function searchQueryVariants(name: string) {
+  const queries = [...expandSearchQueries(name)]
+  for (const query of expandSearchQueries(name)) {
+    queries.push(query.toLowerCase())
+    queries.push(query.replace(/['’ʻ`]/g, ''))
+    queries.push(query.toLowerCase().replace(/['’ʻ`]/g, ''))
+  }
+  return uniqueQueries(queries).sort((a, b) => b.length - a.length || a.localeCompare(b))
+}
+
+export function slugifyTournament(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export function slugCandidates(name: string) {
+  const slugs = new Set<string>()
+  const add = (core: string) => {
+    if (!core) return
+    slugs.add(core)
+    slugs.add(`tournament/${core}`)
+  }
+  for (const query of searchQueryVariants(name)) {
+    add(slugifyTournament(query))
+    add(slugifyTournament(query.replace(/['’ʻ`]/g, '-')))
+    add(slugifyTournament(query.replace(/['’ʻ`]/g, '')))
+  }
+  return [...slugs].sort((a, b) => b.length - a.length || a.localeCompare(b))
+}
+
+export function numberedSlugCandidates(name: string, max = 12) {
+  const preferred = slugCandidates(name).find((slug) => {
+    const core = slug.replace(/^tournament\//, '')
+    return slug.startsWith('tournament/') && core.length >= 16 && /20\d{2}/.test(core)
+  })
+  if (!preferred) return []
+  return Array.from({ length: max - 1 }, (_, index) => `${preferred}-${index + 2}`)
 }
 
 export function significantTokens(name: string) {

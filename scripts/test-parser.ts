@@ -10,9 +10,11 @@ import {
   mapStageName,
   parseDisplayScore,
   expandSearchQueries,
+  numberedSlugCandidates,
   pickBestSet,
   pickTournament,
   roundKey,
+  searchQueryVariants,
   tournamentFits,
   type StartggSet,
 } from '../src/importer/startggMap.ts'
@@ -279,6 +281,37 @@ const gomlDated = pickTournament(
 const gomlDatedOk = gomlDated?.slug === 'tournament/get-on-my-level-2026-canadian-fighting-game-championships'
 if (!gomlDatedOk) failed += 1
 console.log(gomlDatedOk ? 'OK  ' : 'FAIL', 'GOML 2026 prefers the 2026 start.gg event')
+
+const lmbmQueries = searchQueryVariants('LMBM 2026')
+const lmbmQueryOk =
+  lmbmQueries.some((query) => query.toLowerCase() === "let's make big moves 2026") &&
+  lmbmQueries.some((query) => query === 'lets make big moves 2026') &&
+  lmbmQueries.some((query) => query === "Let's Make BIG Moves 2026")
+if (!lmbmQueryOk) failed += 1
+console.log(lmbmQueryOk ? 'OK  ' : 'FAIL', 'LMBM 2026 searches lowercase, no-apostrophe, and BIG Moves')
+
+const lmbmCases = [
+  ['LMBM 2026', "Let's Make BIG Moves 2026", 'tournament/let-s-make-big-moves-2026-7'],
+  ['lets make BIG moves 2026', "Let's Make BIG Moves 2026", 'tournament/let-s-make-big-moves-2026-7'],
+  ["Let's Make Big Moves 2026", 'lets make BIG moves 2026', 'let-s-make-big-moves-2026-7'],
+] as const
+for (const [query, name, slug] of lmbmCases) {
+  const ok = tournamentFits(query, name, slug)
+  if (!ok) failed += 1
+  console.log(ok ? 'OK  ' : 'FAIL', `match ${query} -> ${name}`)
+}
+
+const lmbmPick = pickTournament('LMBM 2026', [
+  { name: 'Genesis X4', slug: 'genesis-x4' },
+  { name: "Let's Make BIG Moves 2026", slug: 'tournament/let-s-make-big-moves-2026-7' },
+])
+const lmbmPickOk = lmbmPick?.slug === 'tournament/let-s-make-big-moves-2026-7'
+if (!lmbmPickOk) failed += 1
+console.log(lmbmPickOk ? 'OK  ' : 'FAIL', 'LMBM 2026 maps to Lets Make BIG Moves 2026')
+
+const lmbmSlugOk = numberedSlugCandidates('LMBM 2026').includes('tournament/let-s-make-big-moves-2026-7')
+if (!lmbmSlugOk) failed += 1
+console.log(lmbmSlugOk ? 'OK  ' : 'FAIL', 'LMBM 2026 tries start.gg slug with -7 suffix')
 
 console.log('\n--- vod / date filters ---')
 const vodIdCases: Array<[string, string | undefined]> = [

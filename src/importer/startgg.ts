@@ -1,13 +1,15 @@
 import type { Match } from '../types'
 import {
   applyStartggSet,
-  expandSearchQueries,
   isSearchableTournament,
   mapStartggSet,
   needsStartggDetails,
+  numberedSlugCandidates,
   pickBestSet,
   pickTournament,
   searchNameForTournament,
+  searchQueryVariants,
+  slugCandidates,
   tournamentFits,
   type StartggSet,
 } from './startggMap'
@@ -15,6 +17,7 @@ import {
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
 const STATE_VERSION = 2
+const MISS_VERSION = 1
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {
@@ -157,6 +160,7 @@ function sleep(ms: number) {
 
 export type StartggState = {
   version?: number
+  missVersion?: number
   misses: Record<string, string>
   done: Record<string, { slug: string; eventId: string; at: string }>
 }
@@ -257,13 +261,6 @@ async function graphql<T>(
   throw new StartggRateLimitError(lastError)
 }
 
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
 function mergeTournaments(nodes: TournamentNode[]) {
   const byId = new Map<string, TournamentNode>()
   for (const node of nodes) {
@@ -274,27 +271,13 @@ function mergeTournaments(nodes: TournamentNode[]) {
   return [...byId.values()]
 }
 
+function foundTournament(nodes: TournamentNode[], name: string) {
+  return mergeTournaments(nodes).some((node) => tournamentFits(name, node.name ?? '', node.slug ?? ''))
+}
+
 async function searchTournaments(token: string, name: string, options: GraphqlOptions = {}) {
   const found: TournamentNode[] = []
-  const queries = expandSearchQueries(name)
-  for (const query of queries) {
-    options.onStatus?.(`Searching start.gg for "${query}"…`)
-    const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
-      token,
-      SEARCH_TOURNAMENTS,
-      { name: query },
-      options,
-    )
-    found.push(...(data.tournaments?.nodes ?? []))
-  }
-  const slugs = new Set<string>()
-  for (const query of queries) {
-    const slug = slugify(query)
-    if (!slug) continue
-    slugs.add(slug)
-    slugs.add(`tournament/${slug}`)
-  }
-  for (const slug of slugs) {
+  const trySlug = async (slug: string) => {
     try {
       const bySlug = await graphql<{ tournament?: TournamentNode | null }>(
         token,
@@ -305,8 +288,28 @@ async function searchTournaments(token: string, name: string, options: GraphqlOp
       if (bySlug.tournament) found.push(bySlug.tournament)
     } catch (error) {
       if (error instanceof StartggBudgetError || error instanceof StartggRateLimitError) throw error
-      // Slug guesses are optional.
     }
+  }
+
+  for (const query of searchQueryVariants(name)) {
+    options.onStatus?.(`Searching start.gg for "${query}"…`)
+    const data = await graphql<{ tournaments?: { nodes?: TournamentNode[] | null } }>(
+      token,
+      SEARCH_TOURNAMENTS,
+      { name: query },
+      options,
+    )
+    found.push(...(data.tournaments?.nodes ?? []))
+    if (foundTournament(found, name)) return mergeTournaments(found)
+  }
+
+  const tried = new Set<string>()
+  for (const slug of [...slugCandidates(name), ...numberedSlugCandidates(name)]) {
+    if (tried.has(slug)) continue
+    tried.add(slug)
+    options.onStatus?.(`Trying start.gg slug ${slug}…`)
+    await trySlug(slug)
+    if (foundTournament(found, name)) return mergeTournaments(found)
   }
   return mergeTournaments(found)
 }
@@ -401,9 +404,11 @@ export async function enrichFromStartgg(options: {
   onCheckpoint?: (state: StartggState) => void | Promise<void>
 }) {
   const stale = (options.state?.version ?? 0) < STATE_VERSION
+  const retryMisses = stale || (options.state?.missVersion ?? 0) < MISS_VERSION
   const state: StartggState = {
     version: STATE_VERSION,
-    misses: stale ? {} : { ...options.state?.misses },
+    missVersion: MISS_VERSION,
+    misses: retryMisses ? {} : { ...options.state?.misses },
     done: stale ? {} : { ...options.state?.done },
   }
   const byId = new Map(options.matches.map((match) => [match.id, match]))
