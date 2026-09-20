@@ -20,6 +20,7 @@ import {
   slugCandidates,
   tournamentFits,
   yearShiftedSlugs,
+  mapStartggSet,
   type StartggSet,
 } from '../src/importer/startggMap.ts'
 import type { Match } from '../src/types.ts'
@@ -439,6 +440,94 @@ const gacktSet = pickBestSet(
 const gacktOk = gacktSet?.fullRoundText === 'Losers Final'
 if (!gacktOk) failed += 1
 console.log(gacktOk ? 'OK  ' : 'FAIL', 'match S Factor losers finals Gackt vs Sonix')
+
+const unknownGf = pickBestSet(
+  sampleMatch({
+    player1: 'YoutubeOne',
+    player2: 'YoutubeTwo',
+    event: 'GRAND FINALS',
+    vodUrl: 'https://www.youtube.com/watch?v=zzzzzzzzzzz',
+  }),
+  [
+    sampleSet({ fullRoundText: 'Winners Final', displayScore: '3-1' }),
+    sampleSet({ fullRoundText: 'Grand Final', displayScore: '3-2' }),
+    sampleSet({ fullRoundText: 'Grand Final Reset', displayScore: '3-0', slots: sampleSet().slots }),
+  ],
+)
+const unknownGfOk = unknownGf?.fullRoundText === 'Grand Final'
+if (!unknownGfOk) failed += 1
+console.log(unknownGfOk ? 'OK  ' : 'FAIL', 'match Grand Finals by round when YouTube tags differ')
+
+const unknownReset = pickBestSet(
+  sampleMatch({
+    player1: 'YoutubeOne',
+    player2: 'YoutubeTwo',
+    event: 'GRAND FINALS RESET',
+    vodUrl: 'https://www.youtube.com/watch?v=zzzzzzzzzzz',
+  }),
+  [
+    sampleSet({ fullRoundText: 'Grand Final', displayScore: '3-2' }),
+    sampleSet({ fullRoundText: 'Grand Final Reset', displayScore: '3-0' }),
+  ],
+)
+const unknownResetOk = unknownReset?.fullRoundText === 'Grand Final Reset'
+if (!unknownResetOk) failed += 1
+console.log(unknownResetOk ? 'OK  ' : 'FAIL', 'match Grand Finals Reset separately from Grand Finals')
+
+const oneNameRound = pickBestSet(
+  sampleMatch({
+    player1: 'MkLeo',
+    player2: 'UnknownOpponent',
+    event: 'WINNERS ROUND 1',
+    vodUrl: 'https://www.youtube.com/watch?v=zzzzzzzzzzz',
+  }),
+  [
+    sampleSet({
+      fullRoundText: 'Winners Round 1',
+      slots: [
+        { entrant: { id: 1, name: 'TSM | MkLeo', participants: [{ gamerTag: 'MkLeo' }] }, standing: { stats: { score: { value: 3 } } } },
+        { entrant: { id: 2, name: 'LocalPlayer', participants: [{ gamerTag: 'LocalPlayer' }] }, standing: { stats: { score: { value: 0 } } } },
+      ],
+    }),
+    sampleSet({
+      fullRoundText: 'Winners Round 1',
+      slots: [
+        { entrant: { id: 3, name: 'Sparg0', participants: [{ gamerTag: 'Sparg0' }] }, standing: { stats: { score: { value: 3 } } } },
+        { entrant: { id: 4, name: 'Other', participants: [{ gamerTag: 'Other' }] }, standing: { stats: { score: { value: 1 } } } },
+      ],
+    }),
+  ],
+)
+const oneNameRoundOk = oneNameRound?.slots?.[0]?.entrant?.name?.includes('MkLeo')
+if (!oneNameRoundOk) failed += 1
+console.log(oneNameRoundOk ? 'OK  ' : 'FAIL', 'match pools by one player plus winners round')
+
+const skipTop8 = pickBestSet(
+  sampleMatch({
+    player1: 'YoutubeOne',
+    player2: 'YoutubeTwo',
+    event: 'TOP 8',
+    vodUrl: 'https://www.youtube.com/watch?v=zzzzzzzzzzz',
+  }),
+  [sampleSet({ fullRoundText: 'Winners Quarter-Final' }), sampleSet({ fullRoundText: 'Losers Quarter-Final' })],
+)
+const skipTop8Ok = !skipTop8
+if (!skipTop8Ok) failed += 1
+console.log(skipTop8Ok ? 'OK  ' : 'FAIL', 'do not guess a TOP 8 VOD from round alone')
+
+const mappedByRound = mapStartggSet(
+  sampleMatch({
+    player1: 'YoutubeOne',
+    player2: 'YoutubeTwo',
+    event: 'GRAND FINALS',
+    setScore: { p1: 3, p2: 2 },
+    vodUrl: 'https://www.youtube.com/watch?v=zzzzzzzzzzz',
+  }),
+  sampleSet({ fullRoundText: 'Grand Final' }),
+)
+const mappedByRoundOk = mappedByRound?.score?.p1 === 3 && mappedByRound.games[0]?.stage === 'pokemon_stadium_2'
+if (!mappedByRoundOk) failed += 1
+console.log(mappedByRoundOk ? 'OK  ' : 'FAIL', 'still copy stages when the set was linked by round')
 
 const lmbmSlugOk = numberedSlugCandidates('LMBM 2026').includes('tournament/let-s-make-big-moves-2026-7')
 if (!lmbmSlugOk) failed += 1

@@ -19,7 +19,7 @@ const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
 const STATE_VERSION = 3
 const MISS_VERSION = 3
-export const MATCHER_VERSION = 1
+export const MATCHER_VERSION = 2
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {

@@ -390,10 +390,15 @@ export function roundKey(text: string) {
   if (/loser.*semi|losers?'?\s*semi|\blsf\b/.test(value)) return 'lsf'
   if (/winner.*quarter|winners?'?\s*quarter|\bwqf\b/.test(value)) return 'wqf'
   if (/loser.*quarter|losers?'?\s*quarter|\blqf\b/.test(value)) return 'lqf'
+  const winnersRound = value.match(/winner[s']*\s*(?:bracket\s*)?(?:round|r)\s*(\d+)/i)
+  if (winnersRound?.[1]) return `wr${winnersRound[1]}`
+  const losersRound = value.match(/loser[s']*\s*(?:bracket\s*)?(?:round|r)\s*(\d+)/i)
+  if (losersRound?.[1]) return `lr${losersRound[1]}`
   if (/top\s*8|決勝トーナメント/.test(value)) return 'top8'
   if (/top\s*16/.test(value)) return 'top16'
   if (/準決勝/.test(value)) return 'sf'
   if (/準々決勝/.test(value)) return 'qf'
+  if (/\bpools?\b/.test(value)) return 'pools'
   return foldKey(value)
 }
 
@@ -524,7 +529,46 @@ export function orientationFlipped(match: Match, set: StartggSet) {
   const keys1 = sideKeys(set, 1)
   const want1 = playerKey(match.player1)
   const want2 = playerKey(match.player2)
-  return keys1.some((got) => keysCompatible(want1, got)) && keys0.some((got) => keysCompatible(want2, got))
+  const p1on0 = keys0.some((got) => keysCompatible(want1, got))
+  const p1on1 = keys1.some((got) => keysCompatible(want1, got))
+  const p2on0 = keys0.some((got) => keysCompatible(want2, got))
+  const p2on1 = keys1.some((got) => keysCompatible(want2, got))
+  if (p1on1 && p2on0) return true
+  if (p1on0 && p2on1) return false
+  if (p1on1 && !p1on0) return true
+  if (p1on0 && !p1on1) return false
+  if (p2on0 && !p2on1) return true
+  if (p2on1 && !p2on0) return false
+
+  const byCharacter = characterOrientationFlipped(match, set)
+  if (byCharacter !== undefined) return byCharacter
+
+  const scored = scoreFromSet(set)
+  if (match.setScore && scored) {
+    const forward = match.setScore.p1 === scored.p1 && match.setScore.p2 === scored.p2
+    const reverse = match.setScore.p1 === scored.p2 && match.setScore.p2 === scored.p1
+    if (reverse && !forward) return true
+  }
+  return false
+}
+
+function characterOrientationFlipped(match: Match, set: StartggSet) {
+  const archive = match.games.find((game) => game.p1Character || game.p2Character)
+  const game = [...(set.games ?? [])].sort((a, b) => (a.orderNum ?? 0) - (b.orderNum ?? 0))[0]
+  if (!archive || !game) return undefined
+  const id0 = String(set.slots?.[0]?.entrant?.id ?? '')
+  const sel0 = game.selections?.find((selection) => String(selection.entrant?.id ?? '') === id0)
+  const sel1 = game.selections?.find((selection) => String(selection.entrant?.id ?? '') !== id0)
+  const char0 = mapCharacterName(sel0?.character?.name)
+  const char1 = mapCharacterName(sel1?.character?.name)
+  if (!char0 || !char1 || char0 === char1) return undefined
+  const p1 = archive.p1Character
+  const p2 = archive.p2Character
+  const forward = (p1 === char0 || !p1) && (p2 === char1 || !p2)
+  const reverse = (p1 === char1 || !p1) && (p2 === char0 || !p2)
+  if (reverse && !forward) return true
+  if (forward && !reverse) return false
+  return undefined
 }
 
 function scoresAgree(match: Match, set: StartggSet) {
@@ -536,6 +580,57 @@ function scoresAgree(match: Match, set: StartggSet) {
   return p1 === match.setScore.p1 && p2 === match.setScore.p2
 }
 
+function scoreShapeAgrees(match: Match, set: StartggSet) {
+  const scored = scoreFromSet(set)
+  if (!match.setScore || !scored) return false
+  const left = [match.setScore.p1, match.setScore.p2].sort((a, b) => a - b)
+  const right = [scored.p1, scored.p2].sort((a, b) => a - b)
+  return left[0] === right[0] && left[1] === right[1]
+}
+
+function sideHasPlayer(set: StartggSet, name: string) {
+  const want = playerKey(name)
+  if (!want) return false
+  return [...sideKeys(set, 0), ...sideKeys(set, 1)].some((got) => keysCompatible(want, got))
+}
+
+const AMBIGUOUS_ROUNDS = new Set(['top8', 'top16', 'set', 'pool', 'pools', 'round', 'finals', 'final', 'winners', 'losers', 'bracket'])
+
+function setsInSameRound(match: Match, sets: StartggSet[]) {
+  const want = roundKey(match.event)
+  if (!want || AMBIGUOUS_ROUNDS.has(want)) return []
+  return sets.filter((set) => roundKey(set.fullRoundText ?? '') === want)
+}
+
+function pickFromRound(match: Match, sets: StartggSet[]) {
+  const sameRound = setsInSameRound(match, sets)
+  if (sameRound.length === 1) return sameRound[0]
+  if (sameRound.length === 0) return undefined
+
+  const p1Hits = sameRound.filter((set) => sideHasPlayer(set, match.player1))
+  const p2Hits = sameRound.filter((set) => sideHasPlayer(set, match.player2))
+  if (p1Hits.length === 1 && p2Hits.length <= 1) return p1Hits[0]
+  if (p2Hits.length === 1 && p1Hits.length <= 1) return p2Hits[0]
+
+  const byScore = sameRound.filter((set) => scoreShapeAgrees(match, set))
+  if (byScore.length === 1) return byScore[0]
+  return undefined
+}
+
+function pickFromOnePlayer(match: Match, sets: StartggSet[]) {
+  const p1Sets = sets.filter((set) => sideHasPlayer(set, match.player1))
+  const p2Sets = sets.filter((set) => sideHasPlayer(set, match.player2))
+  if (p1Sets.length === 1 && p2Sets.length === 0) return p1Sets[0]
+  if (p2Sets.length === 1 && p1Sets.length === 0) return p2Sets[0]
+  if (match.setScore) {
+    const p1Score = p1Sets.filter((set) => scoreShapeAgrees(match, set))
+    if (p1Sets.length > 0 && p1Score.length === 1 && p2Sets.length === 0) return p1Score[0]
+    const p2Score = p2Sets.filter((set) => scoreShapeAgrees(match, set))
+    if (p2Sets.length > 0 && p2Score.length === 1 && p1Sets.length === 0) return p2Score[0]
+  }
+  return undefined
+}
+
 export function pickBestSet(match: Match, sets: StartggSet[]) {
   const vodId = parseVod(match.vodUrl).id
   if (vodId) {
@@ -544,15 +639,16 @@ export function pickBestSet(match: Match, sets: StartggSet[]) {
   }
 
   const byPlayers = sets.filter((set) => playersMatch(match, set))
-  if (byPlayers.length === 0) return undefined
   if (byPlayers.length === 1) return byPlayers[0]
+  if (byPlayers.length > 1) {
+    const byRound = byPlayers.filter((set) => roundsMatch(match.event, set.fullRoundText))
+    if (byRound.length === 1) return byRound[0]
+    const pool = byRound.length ? byRound : byPlayers
+    const byScore = pool.filter((set) => scoresAgree(match, set))
+    if (byScore.length === 1) return byScore[0]
+  }
 
-  const byRound = byPlayers.filter((set) => roundsMatch(match.event, set.fullRoundText))
-  if (byRound.length === 1) return byRound[0]
-  const pool = byRound.length ? byRound : byPlayers
-  const byScore = pool.filter((set) => scoresAgree(match, set))
-  if (byScore.length === 1) return byScore[0]
-  return undefined
+  return pickFromRound(match, sets) ?? pickFromOnePlayer(match, sets)
 }
 
 function winnerForMatch(
@@ -570,7 +666,9 @@ function winnerForMatch(
 }
 
 export function mapStartggSet(match: Match, set: StartggSet): MappedStartggSet | undefined {
-  if (!playersMatch(match, set) && !(parseVod(match.vodUrl).id && youtubeIdFromUrl(set.vodUrl) === parseVod(match.vodUrl).id)) {
+  const vodId = parseVod(match.vodUrl).id
+  const vodOk = Boolean(vodId && youtubeIdFromUrl(set.vodUrl) === vodId)
+  if (!playersMatch(match, set) && !vodOk && !roundsMatch(match.event, set.fullRoundText) && !sideHasPlayer(set, match.player1) && !sideHasPlayer(set, match.player2)) {
     return undefined
   }
   const flipped = orientationFlipped(match, set)
