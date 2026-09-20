@@ -32,6 +32,8 @@ export interface Match {
   custom?: boolean
 }
 
+export type GameMode = 'singles' | 'doubles' | 'squad' | 'crews' | 'all'
+
 export interface MatchFilters {
   player1: string
   player2: string
@@ -42,6 +44,7 @@ export interface MatchFilters {
   from: string
   to: string
   vod: string
+  mode: GameMode
 }
 
 export type RoutePath = '/' | '/add' | '/stats' | '/suggest'

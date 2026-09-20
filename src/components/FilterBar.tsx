@@ -1,7 +1,8 @@
 import { STAGES } from '../data/stages'
 import { EMPTY_FILTERS, hasActiveFilters } from '../lib/filters'
-import type { MatchFilters } from '../types'
+import type { GameMode, MatchFilters } from '../types'
 import { CharacterPicker } from './CharacterPicker'
+import { ModeTabs } from './ModeTabs'
 import { SuggestInput } from './SuggestInput'
 
 type Props = {
@@ -10,10 +11,11 @@ type Props = {
   tags: string[]
   dateMin?: string
   dateMax?: string
+  modeCounts?: Partial<Record<GameMode, number>>
   onChange: (filters: MatchFilters) => void
 }
 
-export function FilterBar({ filters, players, tags, dateMin, dateMax, onChange }: Props) {
+export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts, onChange }: Props) {
   const update = (patch: Partial<MatchFilters>) => onChange({ ...filters, ...patch })
 
   const swap = () => {
@@ -29,6 +31,11 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, onChange }
   return (
     <section className="filters">
       <p className="game-label">Super Smash Bros. Ultimate</p>
+      <ModeTabs
+        value={filters.mode ?? 'singles'}
+        counts={modeCounts}
+        onChange={(mode) => update({ mode })}
+      />
       <div className="vs-row">
         <CharacterPicker
           label="Player 1 character"

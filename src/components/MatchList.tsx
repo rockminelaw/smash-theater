@@ -45,15 +45,48 @@ function Pagination({
   pageCount: number
   onChange: (page: number) => void
 }) {
+  const [draft, setDraft] = useState(String(page + 1))
+  useEffect(() => {
+    setDraft(String(page + 1))
+  }, [page])
+
   if (pageCount <= 1) return null
+
+  const commit = () => {
+    const parsed = Number.parseInt(draft, 10)
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(page + 1))
+      return
+    }
+    const next = Math.min(pageCount, Math.max(1, parsed))
+    onChange(next - 1)
+    setDraft(String(next))
+  }
+
   return (
     <nav className="pagination" aria-label="pagination navigation">
       <button type="button" disabled={page === 0} onClick={() => onChange(page - 1)} aria-label="Go to previous page">
         ‹
       </button>
-      <span>
-        {page + 1} / {pageCount}
-      </span>
+      <label className="page-jump">
+        <span className="sr-only">Page</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value.replace(/\D/g, ''))}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commit()
+            }
+          }}
+          aria-label="Page number"
+        />
+        <span>/ {pageCount}</span>
+      </label>
       <button
         type="button"
         disabled={page === pageCount - 1}

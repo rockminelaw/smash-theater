@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage'
 import { StatsPage } from './pages/StatsPage'
 import { SuggestPage } from './pages/SuggestPage'
 import { EMPTY_FILTERS } from './lib/filters'
+import { isGameMode } from './lib/gameMode'
 import type { Match, MatchFilters, RoutePath } from './types'
 
 function parseHash() {
@@ -13,6 +14,7 @@ function parseHash() {
   const [pathPart, query = ''] = raw.split('?')
   const path = (pathPart || '/') as RoutePath
   const params = new URLSearchParams(query)
+  const modeParam = params.get('mode') ?? ''
   const filters: MatchFilters = {
     ...EMPTY_FILTERS,
     player1: params.get('p1') ?? '',
@@ -24,6 +26,7 @@ function parseHash() {
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
     vod: params.get('vod') ?? '',
+    mode: isGameMode(modeParam) ? modeParam : 'singles',
   }
   return { path: (['/', '/add', '/stats', '/suggest'] as RoutePath[]).includes(path) ? path : '/', filters }
 }
@@ -39,6 +42,7 @@ function writeFilters(filters: MatchFilters) {
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
   if (filters.vod) params.set('vod', filters.vod)
+  if (filters.mode && filters.mode !== 'singles') params.set('mode', filters.mode)
   const query = params.toString()
   const next = query ? `#/?${query}` : '#/'
   if (window.location.hash !== next) {

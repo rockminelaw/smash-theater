@@ -1,5 +1,6 @@
 import type { Match, MatchFilters } from '../types'
 import { namesMatch, parseVod, youtubeIdFromInput } from './format'
+import { modeMatches } from './gameMode'
 
 function charsFor(match: Match, side: 1 | 2) {
   return match.games.map((game) => (side === 1 ? game.p1Character : game.p2Character))
@@ -19,6 +20,7 @@ export const EMPTY_FILTERS: MatchFilters = {
   from: '',
   to: '',
   vod: '',
+  mode: 'singles',
 }
 
 function vodMatches(match: Match, query: string) {
@@ -31,13 +33,20 @@ function vodMatches(match: Match, query: string) {
   return haveId === wantId
 }
 
+function hasFieldFilters(filters: MatchFilters) {
+  return (Object.keys(EMPTY_FILTERS) as Array<keyof MatchFilters>).some(
+    (key) => key !== 'mode' && Boolean(filters[key]),
+  )
+}
+
 export function hasActiveFilters(filters: MatchFilters) {
-  return Object.values({ ...EMPTY_FILTERS, ...filters }).some(Boolean)
+  const active = { ...EMPTY_FILTERS, ...filters }
+  return hasFieldFilters(active) || (Boolean(active.mode) && active.mode !== 'singles')
 }
 
 export function filterMatches(matches: Match[], filters: MatchFilters) {
   const active = { ...EMPTY_FILTERS, ...filters }
-  if (!hasActiveFilters(active)) return matches
+  if (!hasFieldFilters(active) && active.mode === 'all') return matches
   return matches.filter((match) => {
     const p1 = match.player1
     const p2 = match.player2
@@ -90,6 +99,7 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
     if (active.from && match.date < active.from) return false
     if (active.to && match.date > active.to) return false
     if (active.vod.trim() && !vodMatches(match, active.vod)) return false
+    if (!modeMatches(match, active.mode)) return false
 
     return true
   })

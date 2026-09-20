@@ -2,6 +2,7 @@ import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { EMPTY_FILTERS, filterMatches } from '../src/lib/filters.ts'
+import { detectGameMode } from '../src/lib/gameMode.ts'
 import { parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
 import {
   applyStartggSet,
@@ -346,6 +347,48 @@ if (!rangeOk) failed += 1
 console.log(linkHitOk ? 'OK  ' : 'FAIL', 'youtu.be paste matches watch URL')
 console.log(linkMissOk ? 'OK  ' : 'FAIL', 'unknown YouTube id matches nothing')
 console.log(rangeOk ? 'OK  ' : 'FAIL', 'date range keeps the set on 2024-08-01')
+
+console.log('\n--- game modes ---')
+const modeCases: Array<[string, ReturnType<typeof detectGameMode>, Partial<Match>]> = [
+  ['singles default', 'singles', {}],
+  ['doubles tournament', 'doubles', { tournament: 'Shark Tank #130 Dubs' }],
+  ['squad strike event', 'squad', { tournament: 'Smash Ultimate Squad Strike' }],
+  ['squad in player name', 'squad', { player2: 'Zackray Squad Strike' }],
+  ['crew battle', 'crews', { player2: 'Crew Battle' }],
+  ['slash doubles', 'doubles', { player1: 'MkLeo / Tweek', player2: 'Sparg0 / Sonix' }],
+  ['ampersand tag stays singles', 'singles', { player2: 'Trile & Error' }],
+]
+for (const [label, expected, patch] of modeCases) {
+  const got = detectGameMode(sampleMatch(patch))
+  const ok = got === expected
+  if (!ok) failed += 1
+  console.log(ok ? 'OK  ' : 'FAIL', label, got)
+}
+
+const mixed = [
+  sampleMatch(),
+  sampleMatch({ id: 'yt-dubs', tournament: 'Smash Ultimate Doubles' }),
+  sampleMatch({ id: 'yt-squad', tournament: 'Smash Ultimate Squad Strike' }),
+]
+const singlesOnly = filterMatches(mixed, EMPTY_FILTERS)
+const doublesOnly = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'doubles' })
+const allModes = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'all' })
+const singlesOk = singlesOnly.length === 1 && singlesOnly[0]?.id === 'yt-abc'
+const doublesOk = doublesOnly.length === 1 && doublesOnly[0]?.id === 'yt-dubs'
+const allOk = allModes.length === 3
+if (!singlesOk) failed += 1
+if (!doublesOk) failed += 1
+if (!allOk) failed += 1
+console.log(singlesOk ? 'OK  ' : 'FAIL', 'default archive view is singles')
+console.log(doublesOk ? 'OK  ' : 'FAIL', 'doubles tab keeps doubles VODs')
+console.log(allOk ? 'OK  ' : 'FAIL', 'all tab keeps every mode')
+
+const peeledSquad = parseVodTitle(
+  '2GG Kongo Saga - Krustol (Fox) Vs. Kooz Squad Strike (Pikachu) Smash Ultimate - SSBU',
+)
+const peeledOk = peeledSquad?.player1 === 'Krustol' && peeledSquad?.player2 === 'Kooz' && /squad strike/i.test(peeledSquad.event)
+if (!peeledOk) failed += 1
+console.log(peeledOk ? 'OK  ' : 'FAIL', 'strip Squad Strike off the player tag', peeledSquad)
 
 if (failed) {
   console.error(`\n${failed} tests failed`)

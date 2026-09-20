@@ -1,22 +1,34 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { getCharacter } from '../data/characters'
 import { getStage } from '../data/stages'
 import { uniquePlayers } from '../lib/filters'
-import type { Match } from '../types'
+import { detectGameMode, modeMatches } from '../lib/gameMode'
+import type { GameMode, Match } from '../types'
 import { CharacterChip } from '../components/CharacterChip'
+import { ModeTabs } from '../components/ModeTabs'
 
 type Props = {
   matches: Match[]
 }
 
 export function StatsPage({ matches }: Props) {
+  const [mode, setMode] = useState<GameMode>('singles')
+  const modeCounts = useMemo(() => {
+    const counts: Partial<Record<GameMode, number>> = { singles: 0, doubles: 0, squad: 0, crews: 0, all: matches.length }
+    for (const match of matches) {
+      const detected = detectGameMode(match)
+      counts[detected] = (counts[detected] ?? 0) + 1
+    }
+    return counts
+  }, [matches])
+  const visible = useMemo(() => matches.filter((match) => modeMatches(match, mode)), [matches, mode])
   const stats = useMemo(() => {
     const characterCounts = new Map<string, number>()
     const stageCounts = new Map<string, number>()
     const matchupCounts = new Map<string, number>()
     let games = 0
 
-    for (const match of matches) {
+    for (const match of visible) {
       games += match.games.length
       for (const game of match.games) {
         characterCounts.set(game.p1Character, (characterCounts.get(game.p1Character) ?? 0) + 1)
@@ -29,21 +41,22 @@ export function StatsPage({ matches }: Props) {
 
     const topCharacters = [...characterCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
     return {
-      playerCount: uniquePlayers(matches).length,
+      playerCount: uniquePlayers(visible).length,
       games,
       topCharacters,
       topStages: [...stageCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
       topMatchups: [...matchupCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
       maxChar: topCharacters[0]?.[1] ?? 1,
     }
-  }, [matches])
+  }, [visible])
 
   return (
     <main className="page stats-page">
       <h1>Archive stats</h1>
+      <ModeTabs value={mode} counts={modeCounts} onChange={setMode} />
       <div className="stat-cards">
         <article>
-          <strong>{matches.length}</strong>
+          <strong>{visible.length}</strong>
           <span>VODs</span>
         </article>
         <article>

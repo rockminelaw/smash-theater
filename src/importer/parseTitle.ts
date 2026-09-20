@@ -26,6 +26,15 @@ const VS = /\s+(?:vs\.?|versus|対)\s+/i
 const ROUND_PATTERN =
   /(grand finals? reset|grand finals?|winners'? finals?|losers'? finals?|winners'? semis?|losers'? semis?|winners'? quarters?|losers'? quarters?|winners'? rounds?(?:\s*\d+)?|losers'? rounds?(?:\s*\d+)?|winners'? side|losers'? side|grand final|winners final|losers final|top\s*(?:8|16|32|64)|pools?|round of 32|round of 16|gf reset|gf|wf|lf|wsf|lsf|lqf|wqf|決勝トーナメント|グランドファイナル|決勝戦|決勝|準決勝|3位決定戦|準々決勝|[1-9]回戦)/i
 
+const MODE_TAIL = /\s+(squad\s*strike|crew\s*battle|(?:ultimate\s+)?doubles|\bdubs\b|\b2v2\b)\s*$/i
+
+function peelModePhrase(text: string) {
+  const match = text.match(MODE_TAIL)
+  if (!match || match.index === undefined) return { text: text.trim(), mode: '' }
+  const peeled = text.slice(0, match.index).trim()
+  return { text: peeled || text.trim(), mode: match[1].trim() }
+}
+
 export function isOtherGameTitle(text: string) {
   return OTHER_GAMES.test(text)
 }
@@ -123,6 +132,15 @@ export function parseVodTitle(title: string): ParsedVod | null {
 
   const side1 = parseSide(p1Raw)
   const side2 = parseSide((right.split(/\s+[-–—]\s+/)[0] ?? right).trim())
+  const peeled1 = peelModePhrase(side1.player)
+  const peeled2 = peelModePhrase(side2.player)
+  if (peeled1.text !== side1.player) side1.player = peeled1.text
+  if (peeled2.text !== side2.player) side2.player = peeled2.text
+  const modeHint = peeled1.mode || peeled2.mode
+  if (modeHint && event === 'Set') event = modeHint
+  else if (modeHint && !MODE_TAIL.test(` ${tournament}`) && !MODE_TAIL.test(` ${event}`)) {
+    event = `${event} · ${modeHint}`
+  }
 
   if (!side1.player || !side2.player) return null
   if (side1.player.length > 48 || side2.player.length > 48) return null

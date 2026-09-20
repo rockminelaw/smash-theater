@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { FilterBar } from '../components/FilterBar'
 import { MatchList } from '../components/MatchList'
-import { filterMatches, uniquePlayers, uniqueTags } from '../lib/filters'
-import type { Match, MatchFilters } from '../types'
+import { EMPTY_FILTERS, filterMatches, uniquePlayers, uniqueTags } from '../lib/filters'
+import { detectGameMode } from '../lib/gameMode'
+import type { GameMode, Match, MatchFilters } from '../types'
 
 type Props = {
   matches: Match[]
@@ -13,8 +14,20 @@ type Props = {
 
 export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
   const visible = useMemo(() => filterMatches(matches, filters), [matches, filters])
-  const players = useMemo(() => uniquePlayers(matches), [matches])
-  const tags = useMemo(() => uniqueTags(matches), [matches])
+  const inMode = useMemo(
+    () => filterMatches(matches, { ...EMPTY_FILTERS, mode: filters.mode || 'singles' }),
+    [matches, filters.mode],
+  )
+  const players = useMemo(() => uniquePlayers(inMode), [inMode])
+  const tags = useMemo(() => uniqueTags(inMode), [inMode])
+  const modeCounts = useMemo(() => {
+    const counts: Partial<Record<GameMode, number>> = { singles: 0, doubles: 0, squad: 0, crews: 0, all: matches.length }
+    for (const match of matches) {
+      const mode = detectGameMode(match)
+      counts[mode] = (counts[mode] ?? 0) + 1
+    }
+    return counts
+  }, [matches])
   const dateBounds = useMemo(() => {
     if (!matches.length) return { min: '', max: '' }
     let min = matches[0].date
@@ -34,6 +47,7 @@ export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
         tags={tags}
         dateMin={dateBounds.min}
         dateMax={dateBounds.max}
+        modeCounts={modeCounts}
         onChange={onFilters}
       />
       <p className="count">
