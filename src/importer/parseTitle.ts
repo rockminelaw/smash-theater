@@ -1,6 +1,7 @@
 import { isOfficialCharacterId } from '../data/characters'
 import { findCharactersInText, parseCharacterListStrict } from './characterAliases'
 import { normalizePlayerName } from './playerName'
+import { peelEventFromName, isGenericTournament } from './tournamentBleed'
 
 export type ParsedVod = {
   tournament: string
@@ -18,7 +19,7 @@ const NON_ULTIMATE =
   /\bmelee\b|\bssbm\b|\bbrawl\b|\bproject\s*m\b|\bpm\b|スマブラx\b|スマブラ64|スマブラdx/i
 
 const OTHER_GAMES =
-  /rivals\s*2|rivals of aether|\broa\b|brawlhalla|street fighter|\bsf[56]\b|\btekken\b|guilty gear|\b2xko\b|nick\s*all.?star|\bnasb\b|multiversus|dragon ball fighterz?|workshop\b|改造キャラ|modded\s+(char|fighter|cast|skin)|custom\s+character/i
+  /rivals\s*2|rivals of aether|\broa\b|brawlhalla|street fighter|\bsf[56]\b|\btekken\b|guilty gear|\b2xko\b|nick\s*all.?star|\bnasb\b|multiversus|dragon ball fighterz?|workshop\b|改造キャラ|modded\s+(char|fighter|cast|skin)|custom\s+character|\bsmash\s*4\b|\bssb4\b|\bsmash\s*64\b|smash for (?:3ds|wii\s*u)|スマブラ3DS|スマブラWiiU/i
 
 const VS = /\s+(?:vs\.?|versus|対)\s+/i
 
@@ -112,6 +113,12 @@ export function parseVodTitle(title: string): ParsedVod | null {
       event = round[0].trim()
       p1Raw = left.slice(round.index + round[0].length).trim() || p1Raw
     }
+  }
+
+  const peeled = peelEventFromName(p1Raw)
+  if (peeled.tournament && peeled.rest) {
+    if (isGenericTournament(tournament)) tournament = peeled.tournament
+    p1Raw = peeled.rest
   }
 
   const side1 = parseSide(p1Raw)

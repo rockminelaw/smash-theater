@@ -28,7 +28,7 @@ const keep = [
 console.log('--- titles ---')
 for (const title of keep) {
   const parsed = parseVodTitle(title)
-  console.log(parsed ? 'KEEP' : 'DROP', parsed?.player1, 'vs', parsed?.player2)
+  console.log(parsed ? 'KEEP' : 'DROP', parsed?.player1, 'vs', parsed?.player2, parsed ? `@ ${parsed.tournament}` : '')
 }
 
 const names: Array<[string, string]> = [
@@ -71,6 +71,17 @@ const names: Array<[string, string]> = [
   ["マエスマ'U22[LTOP16]Hurt", 'Hurt'],
   ['22"＜WF＞ Hurt', 'Hurt'],
   ['KTP Hurt', 'Hurt'],
+  ['Momocon 2019 Ally', 'Ally'],
+  ['Momocon 2019 MVG Darkwizzy', 'Darkwizzy'],
+  ['Port Priority Aeryn', 'Aeryn'],
+  ['GENESIS X2[WR2] Girth', 'Girth'],
+  ['SSC 2023 Cloudhead', 'Cloudhead'],
+  ['LVL UP EXPO 2026 Shady', 'Shady'],
+  ['DELTA Hurt', 'Hurt'],
+  ['AkaGenesis', 'AkaGenesis'],
+  ['Chez Momocon', 'Chez'],
+  ['Zebra Momocon', 'Zebra'],
+  ['2019 Ally', 'Ally'],
 ]
 
 console.log('\n--- names ---')
@@ -81,6 +92,11 @@ for (const [input, expected] of names) {
   if (!ok) failed += 1
   console.log(ok ? 'OK  ' : 'FAIL', JSON.stringify(input), '->', JSON.stringify(got), ok ? '' : `(want ${expected})`)
 }
+const momoTitle = parseVodTitle('Momocon 2019 Salem (Olimar) Vs. Dabuz (Olimar) Smash Ultimate')
+const momoTitleOk =
+  momoTitle?.player1 === 'Salem' && momoTitle.player2 === 'Dabuz' && /momocon/i.test(momoTitle.tournament)
+if (!momoTitleOk) failed += 1
+console.log(momoTitleOk ? 'OK  ' : 'FAIL', 'Momocon 2019 title peels tournament out of player 1', momoTitle)
 if (failed) {
   console.error(`\n${failed} name tests failed`)
   process.exit(1)

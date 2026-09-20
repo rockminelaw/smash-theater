@@ -1,4 +1,5 @@
 import { ALIAS_BY_LENGTH } from './characterAliases'
+import { peelEventFromName } from './tournamentBleed'
 
 const ROUND_NOISE =
   /\b(?:grand\s+finals?(?:\s+reset)?|winners?'?\s+(?:finals?|semifinals?|semis?|semi|quarters?|quarterfinals?|quarter|side|rounds?(?:\s*\d+)?|r\d+|bracket)|losers?'?\s+(?:finals?|semifinals?|semis?|semi|quarters?|quarterfinals?|quarter|side|rounds?(?:\s*\d+)?|r\d+|bracket|qualifier)|lowers?'?\s+(?:finals?|semifinals?|semis?|semi|quarters?|quarterfinals?|quarter|side|rounds?(?:\s*\d+)?)?|semifinals?|quarterfinals?|quarter\s+finals?|eighths?|8ths?|top\s*(?:8|12|16|24|32|48|64|96|128)|round of\s*(?:64|32|16)|winners?'?\s+round(?:\s*\d+)?|losers?'?\s+round(?:\s*\d+)?|wave\s*\d+(?:\s+pools?)?|pools?(?:\s+winners)?|set\s*\d+|mid\s+tier\s+bracket)\b/gi
@@ -9,7 +10,6 @@ const TRAILING_ROUND = /\s+(?:winners|losers|lowers|finals?|semifinals?|semis?|s
 const LEADING_ROUND = /^(?:finals?|winners|losers|lowers|grand)\s+/i
 
 const TEAM_PREFIXES = [
-  'echo fox mvg',
   'echo fox mvg',
   'zeta division',
   'moist moguls',
@@ -155,12 +155,13 @@ function stripOuterJunk(raw: string) {
 
 function stripEventBleed(raw: string) {
   let name = raw
+    .replace(/#[^\s#]+/g, ' ')
     .replace(/[＜<][^＞>]{0,16}[＞>]/g, ' ')
     .replace(/^[0-9]+["”']\s*/, '')
     .replace(/\s+/g, ' ')
     .trim()
   name = stripOuterJunk(name)
-  if (/(?:マエスマ|ウメブラ|タミスマ|かがりび|カガラビ|スマバト|maesuma|ultcore)/i.test(raw)) {
+  if (/(?:マエスマ|ウメブラ|タミスマ|かがりび|カガラビ|スマバト|maesuma|ultcore)/i.test(name)) {
     name = name
       .replace(/マエスマ['’]?[^\s\]]*(?:\]|$)/g, ' ')
       .replace(/ウメブラ['’]?[^\s\]]*(?:\]|$)/g, ' ')
@@ -171,8 +172,8 @@ function stripEventBleed(raw: string) {
       .replace(/\s+/g, ' ')
       .trim()
     name = stripOuterJunk(name)
-    const latin = raw.match(/[A-Za-z][A-Za-z0-9_]{1,15}$/)
-    if (latin && !/^(winners|losers|finals?)$/i.test(latin[0])) return latin[0]
+    const latin = name.match(/[A-Za-z][A-Za-z0-9_]{1,15}$/)
+    if (latin && !/^(winners|losers|finals?|top)$/i.test(latin[0])) return latin[0]
     const tokens = name.split(/\s+/).filter(Boolean)
     if (tokens.length === 1) return tokens[0] ?? raw
     if (tokens.length >= 2) return tokens.at(-1) ?? name
@@ -184,10 +185,12 @@ export function normalizePlayerName(raw: string) {
   const original = stripOuterJunk(raw.replace(/\s+/g, ' '))
   if (!original) return ''
   const hadRound = new RegExp(ROUND_NOISE.source, 'i').test(original) || LEADING_ROUND.test(original)
+  const peeled = peelEventFromName(stripEventBleed(original))
 
-  let name = original
+  let name = (peeled.rest || original)
     .replace(/#[^\s#]+/g, ' ')
     .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/(?:スマブラ(?:3DS|WiiU|Wii\s*U)|ssb4|smash for (?:3ds|wii\s*u)|smash 64 tournament|smash 4 tournament).*$/i, ' ')
     .replace(ROUND_NOISE, ' ')
     .replace(ROUND_NOISE_JA, ' ')
     .replace(LEADING_ROUND, ' ')
@@ -212,6 +215,7 @@ export function normalizePlayerName(raw: string) {
   }
 
   if (!name) return ''
+  if (/^\d{1,2}$/.test(name)) return ''
   if (/^(winners|losers|lowers|grand|finals?|pools?|top\s*\d+)$/i.test(name)) return ''
   if (name.length > 32) return ''
   return name
