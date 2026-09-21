@@ -87,17 +87,19 @@ export function StatsPage({ matches }: Props) {
       </section>
 
       <div className="stats-split">
-        <section>
-          <h2>Stages</h2>
-          <ul className="plain-list">
-            {stats.topStages.map(([id, count]) => (
-              <li key={id}>
-                <span>{getStage(id)?.name ?? id}</span>
-                <strong>{count}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {stats.topStages.length > 0 && (
+          <section>
+            <h2>Stages</h2>
+            <ul className="plain-list">
+              {stats.topStages.map(([id, count]) => (
+                <li key={id}>
+                  <span>{getStage(id)?.name ?? id}</span>
+                  <strong>{count}</strong>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <section>
           <h2>Matchups</h2>
           <ul className="plain-list">

@@ -4,6 +4,7 @@ import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { EMPTY_FILTERS, filterMatches } from '../src/lib/filters.ts'
 import { detectGameMode } from '../src/lib/gameMode.ts'
 import { parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
+import { parseStartggUrl } from '../src/lib/startggUrl.ts'
 import {
   applyStartggSet,
   isSearchableTournament,
@@ -532,6 +533,28 @@ console.log(mappedByRoundOk ? 'OK  ' : 'FAIL', 'still copy stages when the set w
 const lmbmSlugOk = numberedSlugCandidates('LMBM 2026').includes('tournament/let-s-make-big-moves-2026-7')
 if (!lmbmSlugOk) failed += 1
 console.log(lmbmSlugOk ? 'OK  ' : 'FAIL', 'LMBM 2026 tries start.gg slug with -7 suffix')
+
+const startggLink = parseStartggUrl(
+  'https://www.start.gg/tournament/get-on-my-level-x-canadian-fighting-game-championships/details',
+)
+const startggLinkOk = startggLink?.slug === 'tournament/get-on-my-level-x-canadian-fighting-game-championships'
+if (!startggLinkOk) failed += 1
+console.log(startggLinkOk ? 'OK  ' : 'FAIL', 'parse GOML X start.gg tournament URL')
+
+const startggEvent = parseStartggUrl(
+  'https://www.start.gg/tournament/s-factor-11/event/smash-bros-ultimate-singles/brackets/1684961/2507600/',
+)
+const startggEventOk = startggEvent?.slug === 'tournament/s-factor-11'
+if (!startggEventOk) failed += 1
+console.log(startggEventOk ? 'OK  ' : 'FAIL', 'parse start.gg event URL down to the tournament slug')
+
+const smashggOk = parseStartggUrl('https://smash.gg/tournament/genesis-9')?.slug === 'tournament/genesis-9'
+if (!smashggOk) failed += 1
+console.log(smashggOk ? 'OK  ' : 'FAIL', 'accept smash.gg tournament URLs')
+
+const rejectYoutube = !parseStartggUrl('https://www.youtube.com/watch?v=abcdefghijk')
+if (!rejectYoutube) failed += 1
+console.log(rejectYoutube ? 'OK  ' : 'FAIL', 'reject YouTube URLs as start.gg pages')
 
 console.log('\n--- vod / date filters ---')
 const vodIdCases: Array<[string, string | undefined]> = [

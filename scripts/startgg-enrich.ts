@@ -7,6 +7,7 @@ import type { Match } from '../src/types.ts'
 const ROOT = path.resolve(import.meta.dirname, '..')
 const ARCHIVE = path.join(ROOT, 'public', 'archive.json')
 const STATE = path.join(ROOT, 'data', 'startgg-state.json')
+const SLUGS = path.join(ROOT, 'data', 'startgg-slugs.json')
 
 function argValue(name: string) {
   const prefixed = process.argv.find((arg) => arg.startsWith(`${name}=`))
@@ -48,6 +49,7 @@ const tournamentFilter = argValue('--tournament')
 
 const archive = sanitizeMatches(await readJson<Match[]>(ARCHIVE, []))
 const state = await readJson<StartggState>(STATE, { misses: {}, done: {} })
+const slugs = await readJson<Record<string, string>>(SLUGS, {})
 const since = recent ? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : undefined
 
 console.log(
@@ -68,6 +70,7 @@ const result = await enrichFromStartgg({
   minutes,
   since,
   tournament: tournamentFilter,
+  slugs,
   onProgress: (progress) => {
     console.log(`[${progress.tournament}] ${progress.message}`)
   },

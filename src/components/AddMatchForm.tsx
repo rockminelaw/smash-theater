@@ -3,6 +3,7 @@ import { CHARACTERS, isOfficialCharacterId } from '../data/characters'
 import { STAGES } from '../data/stages'
 import type { Game, Match } from '../types'
 import { CharacterPicker } from './CharacterPicker'
+import { parseStartggUrl } from '../lib/startggUrl'
 
 const emptyGame = (): Game => ({
   p1Character: '',
@@ -23,6 +24,7 @@ export function AddMatchForm({ players, onSave }: Props) {
   const [tournament, setTournament] = useState('')
   const [eventName, setEventName] = useState('Grand Finals')
   const [vodUrl, setVodUrl] = useState('')
+  const [startggUrl, setStartggUrl] = useState('')
   const [notes, setNotes] = useState('')
   const [games, setGames] = useState<Game[]>([emptyGame(), emptyGame(), emptyGame()])
   const [error, setError] = useState('')
@@ -48,6 +50,11 @@ export function AddMatchForm({ players, onSave }: Props) {
       setError('Add a YouTube or Twitch VOD link.')
       return
     }
+    const startgg = startggUrl.trim() ? parseStartggUrl(startggUrl) : undefined
+    if (startggUrl.trim() && !startgg) {
+      setError('That start.gg link does not look like a tournament page.')
+      return
+    }
     if (validGames.length === 0) {
       setError('Add at least one game with both characters.')
       return
@@ -63,6 +70,7 @@ export function AddMatchForm({ players, onSave }: Props) {
       player2: player2.trim(),
       games: validGames,
       notes: notes.trim() || undefined,
+      startggUrl: startgg?.url,
       custom: true,
     })
   }
@@ -88,6 +96,14 @@ export function AddMatchForm({ players, onSave }: Props) {
             value={vodUrl}
             onChange={(event) => setVodUrl(event.target.value)}
             placeholder="https://www.youtube.com/watch?v=..."
+          />
+        </label>
+        <label className="field wide">
+          <span>start.gg page (optional)</span>
+          <input
+            value={startggUrl}
+            onChange={(event) => setStartggUrl(event.target.value)}
+            placeholder="https://www.start.gg/tournament/.../details"
           />
         </label>
         <label className="field">

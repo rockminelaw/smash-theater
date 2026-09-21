@@ -6,11 +6,15 @@ import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parsedToGames, parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { getVideo } from '../src/importer/youtube.ts'
+import { searchNameForTournament } from '../src/importer/startggMap.ts'
 import { parseVod } from '../src/lib/format.ts'
+import { extractStartggUrl, parseStartggUrl } from '../src/lib/startggUrl.ts'
 import type { Match } from '../src/types.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const ARCHIVE = path.join(ROOT, 'public', 'archive.json')
+const SLUGS = path.join(ROOT, 'data', 'startgg-slugs.json')
+const STATE = path.join(ROOT, 'data', 'startgg-state.json')
 const MIN_SEC = 90
 const MAX_SEC = 55 * 60
 
@@ -74,6 +78,45 @@ function extractYoutubeUrl(text: string) {
   return match?.[0]?.replace(/[).,]+$/, '') ?? ''
 }
 
+function tournamentKey(name: string) {
+  return searchNameForTournament(name).toLowerCase()
+}
+
+async function readJson<T>(file: string, fallback: T): Promise<T> {
+  try {
+    return JSON.parse(await readFile(file, 'utf8')) as T
+  } catch {
+    return fallback
+  }
+}
+
+async function saveStartggSlug(tournament: string, url: string) {
+  const parsed = parseStartggUrl(url)
+  if (!parsed) return undefined
+  const key = tournamentKey(tournament)
+  if (!key) return parsed
+  const slugs = await readJson<Record<string, string>>(SLUGS, {})
+  slugs[key] = parsed.slug
+  await writeFile(SLUGS, `${JSON.stringify(slugs, null, 2)}\n`, 'utf8')
+  const state = await readJson<{ misses: Record<string, string>; done: Record<string, unknown> }>(STATE, {
+    misses: {},
+    done: {},
+  })
+  delete state.misses[key]
+  delete state.done[key]
+  await writeFile(STATE, `${JSON.stringify(state)}\n`, 'utf8')
+  return parsed
+}
+
+function applyStartggUrl(archive: Match[], tournament: string, url: string) {
+  const key = tournamentKey(tournament)
+  if (!key) return
+  for (const match of archive) {
+    if (tournamentKey(match.tournament) !== key) continue
+    match.startggUrl = url
+  }
+}
+
 function charactersFromTip(raw: string) {
   const split = raw.split(/\s+(?:vs\.?|versus)\s+/i)
   if (split.length >= 2) {
@@ -115,8 +158,27 @@ if (label === 'rejected') {
 const issue = await github<GithubIssue>(`issues/${issueNumber}`)
 const body = issue.body ?? ''
 const text = `${issue.title}\n${body}`
+const startggRaw = section(body, 'start.gg link') || section(body, 'start.gg page') || extractStartggUrl(text)
+const startgg = parseStartggUrl(startggRaw)
+const mapTournament = section(body, 'Tournament')
 const rawUrl = extractYoutubeUrl(section(body, 'YouTube link') || text)
 const vod = parseVod(rawUrl)
+
+if ((!vod.type || vod.type !== 'youtube' || !vod.id) && startgg && mapTournament) {
+  const saved = await saveStartggSlug(mapTournament, startgg.url)
+  if (!saved) {
+    await comment('I could not read that start.gg tournament link. Edit the issue, then add the **approved** label again.')
+    process.exit(0)
+  }
+  const archive = JSON.parse(await readFile(ARCHIVE, 'utf8')) as Match[]
+  applyStartggUrl(archive, mapTournament, saved.url)
+  await writeFile(ARCHIVE, `${JSON.stringify(archive)}\n`, 'utf8')
+  await comment(`Saved **${mapTournament}** → ${saved.url}. The next start.gg backfill will use this page.`)
+  await closeIssue()
+  console.log(`Mapped ${mapTournament} to ${saved.slug}`)
+  process.exit(0)
+}
+
 if (vod.type !== 'youtube' || !vod.id) {
   await comment('I could not find a YouTube link in this tip. Edit the issue, then add the **approved** label again.')
   process.exit(0)
@@ -165,6 +227,7 @@ const match = sanitizeMatch({
   ),
   setScore: details.score,
   notes: [section(body, 'Notes'), video?.channelTitle].filter(Boolean).join(' · ') || undefined,
+  startggUrl: startgg?.url,
   custom: true,
 })
 
@@ -173,6 +236,12 @@ if (!match) {
     'I could not turn this into an Ultimate set with official characters. Add player names and characters (for example `Fox vs Marth`), remove the **approved** label, then add it again.',
   )
   process.exit(0)
+}
+
+if (startgg) {
+  await saveStartggSlug(match.tournament, startgg.url)
+  applyStartggUrl(archive, match.tournament, startgg.url)
+  match.startggUrl = startgg.url
 }
 
 archive.unshift(match)

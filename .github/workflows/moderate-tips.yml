@@ -47,7 +47,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Commit archive if it changed
         run: |
-          git add public/archive.json
+          git add public/archive.json data/startgg-slugs.json
+          if [ -f data/startgg-state.json ]; then
+            git add -f data/startgg-state.json
+          fi
           if git diff --cached --quiet; then
             echo "No archive change"
             exit 0

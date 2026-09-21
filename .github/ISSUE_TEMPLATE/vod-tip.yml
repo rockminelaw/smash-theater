@@ -14,6 +14,12 @@ body:
     validations:
       required: true
   - type: input
+    id: startgg
+    attributes:
+      label: start.gg page
+      description: Optional. Tournament page — one link can fill scores for every VOD from that event.
+      placeholder: https://www.start.gg/tournament/.../details
+  - type: input
     id: player1
     attributes:
       label: Player 1
@@ -32,4 +38,4 @@ body:
     id: notes
     attributes:
       label: Notes
-      description: Tournament, round, or anything else that helps.
+      description: Tournament, round, start.gg link, or anything else that helps.

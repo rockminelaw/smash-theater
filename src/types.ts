@@ -30,6 +30,7 @@ export interface Match {
   setScore?: { p1: number; p2: number }
   notes?: string
   custom?: boolean
+  startggUrl?: string
 }
 
 export type GameMode = 'singles' | 'doubles' | 'squad' | 'crews' | 'all'

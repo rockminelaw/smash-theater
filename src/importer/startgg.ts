@@ -14,6 +14,7 @@ import {
   tournamentFits,
   type StartggSet,
 } from './startggMap'
+import { parseStartggUrl, startggSlugFromMatch } from '../lib/startggUrl'
 
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
@@ -171,7 +172,7 @@ export type StartggState = {
   done: Record<string, { slug: string; eventId: string; at: string; matcherVersion?: number }>
 }
 
-function tournamentKey(name: string) {
+export function tournamentKey(name: string) {
   return searchNameForTournament(name).toLowerCase()
 }
 
@@ -287,6 +288,7 @@ async function searchTournaments(
   name: string,
   options: GraphqlOptions = {},
   aroundDate?: string,
+  knownSlugs: string[] = [],
 ) {
   const found: TournamentNode[] = []
   const trySlug = async (slug: string) => {
@@ -302,6 +304,18 @@ async function searchTournaments(
       if (error instanceof StartggBudgetError || error instanceof StartggRateLimitError) throw error
     }
   }
+
+  const pasted: TournamentNode[] = []
+  for (const slug of knownSlugs) {
+    options.onStatus?.(`Using pasted start.gg page ${slug}…`)
+    await trySlug(slug)
+    const hit = found.find((node) => {
+      const nodeSlug = node.slug ?? ''
+      return nodeSlug === slug || `tournament/${nodeSlug}` === slug || nodeSlug === slug.replace(/^tournament\//, '')
+    })
+    if (hit && pickUltimateEvent(hit.events)?.id) pasted.push(hit)
+  }
+  if (pasted.length) return mergeTournaments(pasted)
 
   const search = async (query: string, anyGame: boolean) => {
     options.onStatus?.(
@@ -422,12 +436,36 @@ function shouldRetryMiss(state: StartggState, key: string, refresh: boolean) {
   return Number.isNaN(age) || age > 14 * 24 * 60 * 60 * 1000
 }
 
+function knownSlugsFor(group: Match[], key: string, slugs?: Record<string, string>) {
+  const found = new Set<string>()
+  const mapped = slugs?.[key]
+  if (mapped) {
+    const raw = mapped.includes('://')
+      ? mapped
+      : `https://www.start.gg/${mapped.startsWith('tournament/') ? mapped : `tournament/${mapped}`}/details`
+    const parsed = parseStartggUrl(raw)
+    if (parsed) found.add(parsed.slug)
+  }
+  for (const match of group) {
+    const slug = startggSlugFromMatch(match)
+    if (slug) found.add(slug)
+  }
+  return [...found]
+}
+
 function isPendingTournament(
   key: string,
   state: StartggState,
-  options: { skipCached?: boolean; refresh?: boolean },
+  options: { skipCached?: boolean; refresh?: boolean; slugs?: Record<string, string> },
+  group: Match[] = [],
 ) {
   if (options.refresh) return true
+  const known = knownSlugsFor(group, key, options.slugs)
+  const doneSlug = state.done[key]?.slug ?? ''
+  if (known.length && !known.some((slug) => slug === doneSlug || slug.replace(/^tournament\//, '') === doneSlug.replace(/^tournament\//, ''))) {
+    return true
+  }
+  if (known.length && state.misses[key]) return true
   if (options.skipCached && state.done[key] && (state.done[key]?.matcherVersion ?? 0) >= MATCHER_VERSION) {
     return false
   }
@@ -444,6 +482,7 @@ export async function enrichFromStartgg(options: {
   minutes?: number
   since?: string
   tournament?: string
+  slugs?: Record<string, string>
   onProgress?: (progress: StartggProgress) => void
   onWrite?: (matches: Match[]) => void | Promise<void>
   onCheckpoint?: (state: StartggState) => void | Promise<void>
@@ -471,7 +510,7 @@ export async function enrichFromStartgg(options: {
 
   const pending = [...groups.entries()]
     .sort((a, b) => b[1].length - a[1].length)
-    .filter(([key]) => isPendingTournament(key, state, options))
+    .filter(([key, group]) => isPendingTournament(key, state, options, group))
   const batch = pending.slice(0, options.limit ?? pending.length)
   const deadline = options.minutes && options.minutes > 0 ? Date.now() + options.minutes * 60_000 : Number.POSITIVE_INFINITY
   let updated = 0
@@ -508,7 +547,13 @@ export async function enrichFromStartgg(options: {
     }
     let nodes: TournamentNode[]
     try {
-      nodes = await searchTournaments(options.token, query, request, medianDate(group))
+      nodes = await searchTournaments(
+        options.token,
+        query,
+        request,
+        medianDate(group),
+        knownSlugsFor(group, key, options.slugs),
+      )
     } catch (error) {
       if (error instanceof StartggBudgetError) {
         options.onProgress?.({
@@ -642,6 +687,6 @@ export async function enrichFromStartgg(options: {
     })
   }
 
-  const remaining = [...groups.keys()].filter((key) => isPendingTournament(key, state, options)).length
+  const remaining = [...groups.entries()].filter(([key, group]) => isPendingTournament(key, state, options, group)).length
   return { matches: [...byId.values()], updated, scanned, searched, remaining, state }
 }

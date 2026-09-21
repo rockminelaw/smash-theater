@@ -14,8 +14,8 @@ export function AddPage({ matches, onSave, onImported }: Props) {
     <main className="page add-page">
       <h1>Add a VOD</h1>
       <p className="lede">
-        Import sets from YouTube, or archive one match by hand. Character counters and stages can
-        be filled in per game.
+        Import sets from YouTube, or archive one match by hand. Paste a start.gg tournament page
+        if you have it — character counters and stages can be filled in per game.
       </p>
       <YoutubeSync onImported={onImported} />
       <AddMatchForm
