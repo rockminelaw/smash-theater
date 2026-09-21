@@ -29,40 +29,38 @@ export function MatchCard({ match, onDelete }: Props) {
 
   return (
     <article className="match-card">
-      <div className="match-main">
-        <div className="match-meta">
-          <time dateTime={match.date}>{formatDate(match.date)}</time>
-          <p>
-            {match.tournament} · {match.event}
-            {match.notes ? ` · ${match.notes}` : ''}
-          </p>
-        </div>
+      <time className="match-date" dateTime={match.date}>
+        {formatDate(match.date)}
+      </time>
+      <p className="match-round">{match.event}</p>
+      <p className="match-channel">{match.notes}</p>
 
-        <div className="matchup">
-          <div className="player player-left">
-            <strong>{match.player1}</strong>
-            <div className="chip-row">
-              {p1Chars.map((id) => (
-                <CharacterChip key={id} character={getCharacter(id)} size="sm" />
-              ))}
-            </div>
-          </div>
-          <span className="vs-mini">VS</span>
-          <div className="player player-right">
-            <div className="chip-row">
-              {p2Chars.map((id) => (
-                <CharacterChip key={id} character={getCharacter(id)} size="sm" />
-              ))}
-            </div>
-            <strong>{match.player2}</strong>
+      <div className="matchup">
+        <div className="player player-left">
+          <strong>{match.player1}</strong>
+          <div className="chip-row">
+            {p1Chars.map((id) => (
+              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+            ))}
           </div>
         </div>
-
-        <a className="watch-link" href={match.vodUrl} target="_blank" rel="noreferrer" aria-label="Watch VOD">
-          {vod.thumbnail && <img src={vod.thumbnail} alt="" referrerPolicy="no-referrer" />}
-          <span>Watch</span>
-        </a>
+        <span className="vs-mini">VS</span>
+        <div className="player player-right">
+          <div className="chip-row">
+            {p2Chars.map((id) => (
+              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+            ))}
+          </div>
+          <strong>{match.player2}</strong>
+        </div>
       </div>
+
+      <a className="watch-link" href={match.vodUrl} target="_blank" rel="noreferrer" aria-label="Watch VOD">
+        {vod.thumbnail && <img src={vod.thumbnail} alt="" referrerPolicy="no-referrer" />}
+        <span>Watch</span>
+      </a>
+
+      <p className="match-tournament">{match.tournament}</p>
 
       {(showDetails || (match.custom && onDelete)) && (
         <div className="match-actions">
