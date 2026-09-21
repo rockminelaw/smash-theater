@@ -1,5 +1,5 @@
 import type { Match, MatchFilters } from '../types'
-import { namesMatch, parseVod, youtubeIdFromInput } from './format'
+import { namesMatch } from './format'
 import { modeMatches } from './gameMode'
 
 function charsFor(match: Match, side: 1 | 2) {
@@ -19,18 +19,7 @@ export const EMPTY_FILTERS: MatchFilters = {
   tag: '',
   from: '',
   to: '',
-  vod: '',
   mode: 'singles',
-}
-
-function vodMatches(match: Match, query: string) {
-  const needle = query.trim()
-  if (!needle) return true
-  if (match.vodUrl.toLowerCase().includes(needle.toLowerCase())) return true
-  const wantId = youtubeIdFromInput(needle)
-  if (!wantId) return false
-  const haveId = parseVod(match.vodUrl).id ?? (match.id.startsWith('yt-') ? match.id.slice(3) : '')
-  return haveId === wantId
 }
 
 function hasFieldFilters(filters: MatchFilters) {
@@ -98,7 +87,6 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
 
     if (active.from && match.date < active.from) return false
     if (active.to && match.date > active.to) return false
-    if (active.vod.trim() && !vodMatches(match, active.vod)) return false
     if (!modeMatches(match, active.mode)) return false
 
     return true

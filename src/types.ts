@@ -44,7 +44,6 @@ export interface MatchFilters {
   tag: string
   from: string
   to: string
-  vod: string
   mode: GameMode
 }
 

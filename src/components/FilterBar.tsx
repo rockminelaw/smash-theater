@@ -104,17 +104,6 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
             onChange={(event) => update({ to: event.target.value })}
           />
         </label>
-        <label className="field field-vod">
-          <span>YouTube URL</span>
-          <input
-            value={filters.vod ?? ''}
-            onChange={(event) => update({ vod: event.target.value })}
-            placeholder="Paste a YouTube link"
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
       </div>
       {hasActiveFilters(filters) && (
         <button type="button" className="text-btn clear-filters" onClick={() => onChange(EMPTY_FILTERS)}>

@@ -25,7 +25,6 @@ function parseHash() {
     tag: params.get('tag') ?? '',
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
-    vod: params.get('vod') ?? '',
     mode: isGameMode(modeParam) ? modeParam : 'singles',
   }
   return { path: (['/', '/add', '/stats', '/suggest'] as RoutePath[]).includes(path) ? path : '/', filters }
@@ -41,7 +40,6 @@ function writeFilters(filters: MatchFilters) {
   if (filters.tag) params.set('tag', filters.tag)
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
-  if (filters.vod) params.set('vod', filters.vod)
   if (filters.mode && filters.mode !== 'singles') params.set('mode', filters.mode)
   const query = params.toString()
   const next = query ? `#/?${query}` : '#/'

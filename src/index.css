@@ -204,12 +204,6 @@ a {
   min-width: 10.5rem;
 }
 
-.field-vod {
-  min-width: min(28rem, 100%);
-  flex: 1 1 18rem;
-  max-width: 36rem;
-}
-
 .vs-button {
   width: 46px;
   height: 46px;

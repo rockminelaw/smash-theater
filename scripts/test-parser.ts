@@ -575,19 +575,11 @@ for (const [input, expected] of vodIdCases) {
 }
 
 const dated = sampleMatch()
-const linkHit = filterMatches([dated], { ...EMPTY_FILTERS, vod: 'https://youtu.be/abcdefghijk' })
-const linkMiss = filterMatches([dated], { ...EMPTY_FILTERS, vod: 'https://youtu.be/zzzzzzzzzzz' })
 const inRange = filterMatches([dated], { ...EMPTY_FILTERS, from: '2024-08-01', to: '2024-08-01' })
 const before = filterMatches([dated], { ...EMPTY_FILTERS, to: '2024-07-31' })
 const after = filterMatches([dated], { ...EMPTY_FILTERS, from: '2024-08-02' })
-const linkHitOk = linkHit.length === 1
-const linkMissOk = linkMiss.length === 0
 const rangeOk = inRange.length === 1 && before.length === 0 && after.length === 0
-if (!linkHitOk) failed += 1
-if (!linkMissOk) failed += 1
 if (!rangeOk) failed += 1
-console.log(linkHitOk ? 'OK  ' : 'FAIL', 'youtu.be paste matches watch URL')
-console.log(linkMissOk ? 'OK  ' : 'FAIL', 'unknown YouTube id matches nothing')
 console.log(rangeOk ? 'OK  ' : 'FAIL', 'date range keeps the set on 2024-08-01')
 
 console.log('\n--- game modes ---')
