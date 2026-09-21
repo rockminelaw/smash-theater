@@ -13,6 +13,9 @@ on:
         description: Max tournament names this run (time budget still stops around 5 hours)
         type: number
         default: 400
+      youtube_channel:
+        description: Full-scan this YouTube channel name (e.g. JMLeague). Leave empty for the daily recent scrape.
+        type: string
 
 permissions:
   contents: write
@@ -36,12 +39,19 @@ jobs:
       - run: npm ci
 
       - name: Scrape recent uploads
-        if: ${{ github.event.inputs.startgg_full != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (github.event.inputs.startgg_full != 'true' && !github.event.inputs.youtube_channel) }}
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: npm run scrape -- --recent --days 3 --enrich --limit 2500
 
+      - name: Scrape one YouTube channel
+        if: ${{ github.event.inputs.youtube_channel }}
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: npm run scrape -- --channel "${{ github.event.inputs.youtube_channel }}" --full
+
       - name: Fill scores from start.gg
+        if: ${{ !github.event.inputs.youtube_channel }}
         env:
           STARTGG_TOKEN: ${{ secrets.STARTGG_TOKEN }}
         run: |

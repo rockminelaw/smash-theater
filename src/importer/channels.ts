@@ -2,7 +2,7 @@ export type VodChannel = {
   id?: string
   handle?: string
   name: string
-  region: 'us' | 'jp' | 'other'
+  region: 'us' | 'jp' | 'au' | 'other'
   enabled: boolean
 }
 
@@ -57,6 +57,13 @@ export const VOD_CHANNELS: VodChannel[] = [
     id: 'UCI13aTPz_ip8lXGpjkGBCow',
     name: 'Tamisuma.jp',
     region: 'jp',
+    enabled: true,
+  },
+  {
+    id: 'UCVfu96BLrC7aUabLbYM-lGQ',
+    handle: '@JMLeague',
+    name: 'JMLeague',
+    region: 'au',
     enabled: true,
   },
 ]

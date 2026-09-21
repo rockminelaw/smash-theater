@@ -120,6 +120,26 @@ const momoTitleOk =
   momoTitle?.player1 === 'Salem' && momoTitle.player2 === 'Dabuz' && /momocon/i.test(momoTitle.tournament)
 if (!momoTitleOk) failed += 1
 console.log(momoTitleOk ? 'OK  ' : 'FAIL', 'Momocon 2019 title peels tournament out of player 1', momoTitle)
+
+const jmleagueGf = parseVodTitle('RaZe (Link) vs DELUXE (Meta Knight) - JMLeague12 Losers Final')
+const jmleagueGfOk =
+  jmleagueGf?.player1 === 'RaZe' &&
+  jmleagueGf.player2 === 'DELUXE' &&
+  jmleagueGf.p1Characters[0] === 'link' &&
+  jmleagueGf.p2Characters[0] === 'meta_knight' &&
+  jmleagueGf.tournament === 'JMLeague12' &&
+  /losers final/i.test(jmleagueGf.event)
+if (!jmleagueGfOk) failed += 1
+console.log(jmleagueGfOk ? 'OK  ' : 'FAIL', 'JMLeague suffix after vs becomes tournament and round', jmleagueGf)
+
+const jmleagueRound = parseVodTitle('Nith (Greninja) vs Neo (Cloud) - JMLeague12 Round 2')
+const jmleagueRoundOk =
+  jmleagueRound?.player1 === 'Nith' &&
+  jmleagueRound.player2 === 'Neo' &&
+  jmleagueRound.tournament === 'JMLeague12' &&
+  /round 2/i.test(jmleagueRound.event)
+if (!jmleagueRoundOk) failed += 1
+console.log(jmleagueRoundOk ? 'OK  ' : 'FAIL', 'JMLeague Round 2 stays on the event', jmleagueRound)
 if (failed) {
   console.error(`\n${failed} name tests failed`)
   process.exit(1)

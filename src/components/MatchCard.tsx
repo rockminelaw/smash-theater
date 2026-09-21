@@ -32,6 +32,10 @@ export function MatchCard({ match, onDelete }: Props) {
       <div className="match-main">
         <div className="match-meta">
           <time dateTime={match.date}>{formatDate(match.date)}</time>
+          <p>
+            {match.tournament} · {match.event}
+            {match.notes ? ` · ${match.notes}` : ''}
+          </p>
         </div>
 
         <div className="matchup">
@@ -39,7 +43,7 @@ export function MatchCard({ match, onDelete }: Props) {
             <strong>{match.player1}</strong>
             <div className="chip-row">
               {p1Chars.map((id) => (
-                <CharacterChip key={id} character={getCharacter(id)} />
+                <CharacterChip key={id} character={getCharacter(id)} size="sm" />
               ))}
             </div>
           </div>
@@ -47,24 +51,17 @@ export function MatchCard({ match, onDelete }: Props) {
           <div className="player player-right">
             <div className="chip-row">
               {p2Chars.map((id) => (
-                <CharacterChip key={id} character={getCharacter(id)} />
+                <CharacterChip key={id} character={getCharacter(id)} size="sm" />
               ))}
             </div>
             <strong>{match.player2}</strong>
           </div>
         </div>
 
-        <a className="watch-link" href={match.vodUrl} target="_blank" rel="noreferrer">
+        <a className="watch-link" href={match.vodUrl} target="_blank" rel="noreferrer" aria-label="Watch VOD">
           {vod.thumbnail && <img src={vod.thumbnail} alt="" referrerPolicy="no-referrer" />}
-          <span>Watch VOD</span>
+          <span>Watch</span>
         </a>
-      </div>
-
-      <div className="match-sub">
-        <p>
-          {match.tournament} · {match.event}
-          {match.notes ? ` · ${match.notes}` : ''}
-        </p>
       </div>
 
       {(showDetails || (match.custom && onDelete)) && (
