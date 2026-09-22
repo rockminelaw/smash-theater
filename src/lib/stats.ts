@@ -1,4 +1,5 @@
 import { playerKey } from '../importer/playerName'
+import { CHARACTERS } from '../data/characters'
 import type { GameMode, Match, MatchFilters } from '../types'
 import { EMPTY_FILTERS } from './filters'
 import { namesMatch } from './format'
@@ -277,6 +278,11 @@ export function computeArchiveStats(matches: Match[]): ArchiveStats {
   }
 
   const nameFor = (key: string) => bestName(playerNames.get(key), key)
+
+  // Keep the full Ultimate roster on the characters tab, even with zero VODs (e.g. Random).
+  for (const character of CHARACTERS) {
+    if (!characters.has(character.id)) characters.set(character.id, 0)
+  }
 
   const scoredPlayers = [...new Set([...playerWins.keys(), ...playerLosses.keys()])]
     .map((key) => {

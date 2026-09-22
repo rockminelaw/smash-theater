@@ -1,5 +1,5 @@
 import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
-import { parseVodTitle } from '../src/importer/parseTitle.ts'
+import { parseVodTitle, parsedToGames } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { namesMatch, parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
 import { EMPTY_FILTERS, filterMatches, filtersToHash, rankNameSuggestions, sortVisibleMatches } from '../src/lib/filters.ts'
@@ -836,6 +836,43 @@ const peeledSquad = parseVodTitle(
 const peeledOk = peeledSquad?.player1 === 'Krustol' && peeledSquad?.player2 === 'Kooz' && /squad strike/i.test(peeledSquad.event)
 if (!peeledOk) failed += 1
 console.log(peeledOk ? 'OK  ' : 'FAIL', 'strip Squad Strike off the player tag', peeledSquad)
+
+const randomTitle = parseVodTitle('LXI (Cloud) vs omyn (Random) - JMLeague14 Round 6')
+const randomGames = randomTitle ? parsedToGames(randomTitle) : []
+const randomKept =
+  randomTitle?.player1 === 'LXI' &&
+  randomTitle.player2 === 'omyn' &&
+  randomTitle.p2Characters.includes('random') &&
+  randomGames.some((game) => game.p2Character === 'random')
+const randomSanitized = randomTitle
+  ? sanitizeMatch({
+      id: 'yt-random-test',
+      date: '2026-09-10',
+      tournament: randomTitle.tournament,
+      event: randomTitle.event,
+      vodUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
+      player1: randomTitle.player1,
+      player2: randomTitle.player2,
+      games: randomGames,
+      notes: 'JMLeague',
+    })
+  : null
+const randomArchiveOk = Boolean(randomSanitized?.games.some((game) => game.p2Character === 'random'))
+if (!randomKept) failed += 1
+if (!randomArchiveOk) failed += 1
+console.log(randomKept ? 'OK  ' : 'FAIL', 'keep Random character titles', randomTitle)
+console.log(randomArchiveOk ? 'OK  ' : 'FAIL', 'sanitize keeps Random sets in the archive', randomSanitized?.games)
+
+const glassBui = parseVodTitle(
+  'Cave (Mewtwo, Random) vs GlassBui (Pikachu, Random) - JMLeague8 Round 7',
+)
+const glassBuiOk =
+  glassBui?.player1 === 'Cave' &&
+  glassBui.player2 === 'GlassBui' &&
+  glassBui.p1Characters.includes('random') &&
+  glassBui.p2Characters.includes('random')
+if (!glassBuiOk) failed += 1
+console.log(glassBuiOk ? 'OK  ' : 'FAIL', 'GlassBui is not truncated by SSBU strip', glassBui)
 
 if (failed) {
   console.error(`\n${failed} tests failed`)

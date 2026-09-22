@@ -24,7 +24,7 @@ const OTHER_GAMES =
 const VS = /\s+(?:vs\.?|versus|対)\s+/i
 
 const ROUND_PATTERN =
-  /(grand finals? reset|grand finals?|winners'? finals?|losers'? finals?|winners'? semis?|losers'? semis?|winners'? quarters?|losers'? quarters?|winners'? rounds?(?:\s*\d+)?|losers'? rounds?(?:\s*\d+)?|winners'? side|losers'? side|grand final|winners final|losers final|top\s*(?:8|16|32|64)|pools?|round of 32|round of 16|rounds?\s*\d+|gf reset|gf|wf|lf|wsf|lsf|lqf|wqf|決勝トーナメント|グランドファイナル|決勝戦|決勝|準決勝|3位決定戦|準々決勝|[1-9]回戦)/i
+  /(grand finals? reset|grand finals?|winners'? finals?|losers'? finals?|winners'? semis?|losers'? semis?|winners'? quarters?|losers'? quarters?|winners'? rounds?(?:\s*\d+)?|losers'? rounds?(?:\s*\d+)?|winners'? side|losers'? side|grand final|winners final|losers final|top\s*(?:8|16|32|64)|pools?|round of 32|round of 16|rounds?\s*\d+|\bgf reset\b|\bgf\b|\bwf\b|\blf\b|\bwsf\b|\blsf\b|\blqf\b|\bwqf\b|決勝トーナメント|グランドファイナル|決勝戦|決勝|準決勝|3位決定戦|準々決勝|[1-9]回戦)/i
 
 const MODE_TAIL = /\s+(squad\s*strike|crew\s*battle|(?:ultimate\s+)?doubles|\bdubs\b|\b2v2\b)\s*$/i
 
@@ -63,8 +63,9 @@ function splitRound(prefix: string) {
 
 function parseSide(side: string) {
   const cleaned = side
-    .replace(/Smash Ultimate.*$/i, '')
-    .replace(/SSBU.*$/i, '')
+    .replace(/\bSmash Ultimate\b.*$/i, '')
+    // Word-bound SSBU so names like "GlassBui" (contains "ssBu") are not truncated.
+    .replace(/\bSSBU\b.*$/i, '')
     .replace(/スマブラSP.*$/i, '')
     .trim()
   const paren = cleaned.match(/^(.*?)\s*\(([^)]+)\)/)
@@ -104,26 +105,51 @@ function parseSide(side: string) {
   }
 }
 
+function splitSpacedDashOutsideParens(text: string) {
+  let depth = 0
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (char === '(' || char === '（') depth += 1
+    else if (char === ')' || char === '）') depth = Math.max(0, depth - 1)
+    else if (depth === 0 && /[-–—]/.test(char)) {
+      const left = text[index - 1]
+      const right = text[index + 1]
+      if (left === ' ' && right === ' ') {
+        return {
+          head: text.slice(0, index).trim(),
+          tail: text.slice(index + 1).trim(),
+        }
+      }
+    }
+  }
+  return null
+}
+
 export function parseVodTitle(title: string): ParsedVod | null {
   if (!looksLikeUltimateSet(title)) return null
 
-  const stripped = title.replace(/【[^】]*】/g, ' ').replace(/\s+/g, ' ').trim()
+  const stripped = title
+    .replace(/【[^】]*】/g, ' ')
+    // YouTube search snippets often glue durations onto the title (e.g. "Round 622:02").
+    .replace(/\b\d{1,2}:\d{2}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   const parts = stripped.split(VS)
   if (parts.length < 2) return null
 
   const left = parts[0].trim()
   const right = parts.slice(1).join(' vs ').trim()
-  const dash = left.match(/^(.*?)\s*[-–—]\s*(.+)$/)
+  const dash = splitSpacedDashOutsideParens(left)
 
   let tournament = 'YouTube VOD'
   let event = 'Set'
   let p1Raw = left
 
   if (dash) {
-    const split = splitRound(dash[1].trim())
+    const split = splitRound(dash.head)
     tournament = split.tournament
     event = split.event
-    p1Raw = dash[2].trim()
+    p1Raw = dash.tail
   } else {
     const round = left.match(ROUND_PATTERN)
     if (round && round.index !== undefined) {
@@ -139,13 +165,17 @@ export function parseVodTitle(title: string): ParsedVod | null {
     p1Raw = peeled.rest
   }
 
-  const rightDash = right.match(/^(.*?)\s+[-–—]\s+(.+)$/)
-  const p2Raw = (rightDash?.[1] ?? right).trim()
-  const suffix = rightDash?.[2]?.trim() ?? ''
-  if (suffix && isGenericTournament(tournament)) {
+  const rightDash = splitSpacedDashOutsideParens(right)
+  const p2Raw = (rightDash?.head ?? right).trim()
+  const suffix = rightDash?.tail ?? ''
+  if (suffix) {
     const split = splitRound(suffix)
-    tournament = split.tournament
-    event = split.event
+    if (isGenericTournament(tournament)) {
+      tournament = split.tournament
+      event = split.event
+    } else if (event === 'Set' && split.event !== 'Set') {
+      event = split.event
+    }
   }
 
   const side1 = parseSide(p1Raw)
@@ -158,7 +188,7 @@ export function parseVodTitle(title: string): ParsedVod | null {
 
   if (!side1.player || !side2.player) return null
   if (side1.player.length > 48 || side2.player.length > 48) return null
-  if (side1.unknown.length > 0 || side2.unknown.length > 0) return null
+  // Keep sets if each side has at least one official character (ignore unknown tags like "Tink").
   if (side1.characters.length === 0 || side2.characters.length === 0) return null
 
   return {
