@@ -1,13 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { BRAWL_CHANNEL_NAMES } from '../src/importer/channels.ts'
 import { sanitizeMatch, sanitizeMatches } from '../src/importer/official.ts'
 import { parseVodTitle, parsedToGames } from '../src/importer/parseTitle.ts'
 import { isGenericTournament, isJunkTournamentName, cleanTournamentName } from '../src/importer/tournamentBleed.ts'
 import type { Match } from '../src/types.ts'
 
 const ARCHIVE = path.resolve(import.meta.dirname, '../public/archive.json')
-const BRAWL = new Set<string>(BRAWL_CHANNEL_NAMES)
 
 /** Only re-fetch titles for chopped / single-letter leftovers — not generic placeholders. */
 function needsOembedRepair(match: Match) {
@@ -36,17 +34,15 @@ function sleep(ms: number) {
 }
 
 const matches = JSON.parse(await readFile(ARCHIVE, 'utf8')) as Match[]
-const withoutBrawl = matches.filter((match) => !BRAWL.has(match.notes || ''))
-const droppedChannels = matches.length - withoutBrawl.length
 
-const locallyCleaned = withoutBrawl.map((match) => {
+const locallyCleaned = matches.map((match) => {
   const tournament = cleanTournamentName(match.tournament || '')
   if (tournament === match.tournament) return match
   return { ...match, tournament }
 })
 
 const toRepair = locallyCleaned.filter(needsOembedRepair)
-console.log(`Dropped ${droppedChannels} Brawl-channel VODs. OEmbed repair for ${toRepair.length}…`)
+console.log(`OEmbed repair for ${toRepair.length}…`)
 
 const byId = new Map(locallyCleaned.map((match) => [match.id, match]))
 let titleRepairs = 0
@@ -102,7 +98,6 @@ console.log(
     {
       before: matches.length,
       after: cleaned.length,
-      droppedBrawlChannels: droppedChannels,
       oembedTargets: toRepair.length,
       titleRepairs,
       titleFails,

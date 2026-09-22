@@ -21,7 +21,7 @@ const ULTIMATE_HINT =
   /ssbu|smash\s*ultimate|super smash bros\.?\s*ultimate|スマブラ\s*sp|スマブラスペシャル|スマブラSP|ultimate singles/i
 
 const NON_ULTIMATE =
-  /\bmelee\b|\bssbm\b|\bbrawl\b|\bproject\s*m\b|\bpm\b|スマブラx\b|スマブラ64|スマブラdx/i
+  /\bmelee\b|\bssbm\b|\bssbb\b|\bbrawl\b|\bproject\s*m\b|\bpm\b|スマブラx\b|スマブラ64|スマブラdx/i
 
 const OTHER_GAMES =
   /rivals\s*2|rivals of aether|\broa\b|brawlhalla|street fighter|\bsf[56]\b|\btekken\b|guilty gear|\b2xko\b|nick\s*all.?star|\bnasb\b|multiversus|dragon ball fighterz?|workshop\b|改造キャラ|modded\s+(char|fighter|cast|skin)|custom\s+character|\bsmash\s*4\b|\bssb4\b|\bsmash\s*64\b|smash for (?:3ds|wii\s*u)|スマブラ3DS|スマブラWiiU/i

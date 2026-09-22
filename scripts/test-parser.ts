@@ -917,15 +917,7 @@ const genesisTrailingOk =
 if (!genesisTrailingOk) failed += 1
 console.log(genesisTrailingOk ? 'OK  ' : 'FAIL', 'trailing Genesis 9 becomes the tournament', genesisTrailing)
 
-const banjoVariants = [
-  'Banjo & Kazooie',
-  'Banjo and Kazooie',
-  'Banjo Kazooie',
-  'Banjo + Kazooie',
-  'Banjo/Kazooie',
-  'banjo-kazooie',
-  'Kazooie',
-]
+const banjoVariants = ['Banjo & Kazooie', 'Banjo and Kazooie', 'Banjo Kazooie']
 let banjoFailed = 0
 for (const label of banjoVariants) {
   const parsed = parseVodTitle(`DAT MM 1 - Player (Fox) Vs. Duo (${label}) Smash Ultimate - SSBU`)

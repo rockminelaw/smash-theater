@@ -2,21 +2,9 @@
 export const CHARACTER_ALIASES: Array<[string, string]> = [
   ['rosalina & luma', 'rosalina'],
   ['rosalina and luma', 'rosalina'],
-  ['rosalina + luma', 'rosalina'],
-  ['rosalina luma', 'rosalina'],
   ['banjo & kazooie', 'banjo'],
   ['banjo and kazooie', 'banjo'],
-  ['banjo + kazooie', 'banjo'],
-  ['banjo/kazooie', 'banjo'],
-  ['banjo-kazooie', 'banjo'],
   ['banjo kazooie', 'banjo'],
-  ['banjo＆kazooie', 'banjo'],
-  ['banjo＋kazooie', 'banjo'],
-  ['b & k', 'banjo'],
-  ['b and k', 'banjo'],
-  ['b+k', 'banjo'],
-  ['b & kazooie', 'banjo'],
-  ['kazooie', 'banjo'],
   ['mr. game & watch', 'game_and_watch'],
   ['mr game & watch', 'game_and_watch'],
   ['mr. game and watch', 'game_and_watch'],
@@ -258,27 +246,11 @@ export const CHARACTER_ALIASES: Array<[string, string]> = [
 
 export const ALIAS_BY_LENGTH = [...CHARACTER_ALIASES].sort((a, b) => b[0].length - a[0].length)
 
-/** Fold duo connectors so "Banjo & Kazooie" / "Banjo + Kazooie" / "Banjo and Kazooie" share aliases. */
-function characterTokenCandidates(raw: string) {
-  const base = raw.trim().toLowerCase().replace(/\s+/g, ' ')
-  if (!base) return []
-  const candidates = new Set<string>([base])
-  const connectors = /\s*(?:&|＆|\+|＋|\/)\s*|\s+and\s+/gi
-  candidates.add(base.replace(connectors, ' and '))
-  candidates.add(base.replace(connectors, ' & '))
-  candidates.add(base.replace(connectors, ' '))
-  candidates.add(base.replace(connectors, '-'))
-  candidates.add(base.replace(connectors, '/'))
-  candidates.add(base.replace(connectors, '+'))
-  return [...candidates]
-}
-
 export function matchCharacterToken(raw: string) {
-  for (const token of characterTokenCandidates(raw)) {
-    const hit = ALIAS_BY_LENGTH.find(([alias]) => alias.toLowerCase() === token)
-    if (hit) return hit[1]
-  }
-  return undefined
+  const token = raw.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!token) return undefined
+  const hit = ALIAS_BY_LENGTH.find(([alias]) => alias.toLowerCase() === token)
+  return hit?.[1]
 }
 
 function aliasPattern(alias: string) {
@@ -291,8 +263,7 @@ function aliasPattern(alias: string) {
 
 export function findCharactersInText(raw: string) {
   const ids: string[] = []
-  // Normalize duo connectors before scanning so Banjo + Kazooie hits the and/& aliases.
-  let remaining = ` ${raw.replace(/\s*(?:&|＆|\+|＋)\s*/g, ' and ')} `
+  let remaining = ` ${raw} `
   for (const [alias, id] of ALIAS_BY_LENGTH) {
     const pattern = aliasPattern(alias)
     if (pattern.test(remaining)) {
@@ -307,7 +278,7 @@ export function parseCharacterListStrict(raw: string) {
   const cleanedWhole = raw.replace(/\bmod(s|ded)?\b/gi, '').replace(/\s+/g, ' ').trim()
   if (!cleanedWhole) return { ids: [], unknown: [] }
 
-  // Prefer the full string so "Banjo & Kazooie" is one character, not Banjo + unknown Kazooie.
+  // Match duo names like "Banjo & Kazooie" before splitting on &/+.
   const whole = matchCharacterToken(cleanedWhole)
   if (whole) return { ids: [whole], unknown: [] }
 
