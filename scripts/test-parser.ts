@@ -60,8 +60,8 @@ const names: Array<[string, string]> = [
   ['CLG | VoiD Sheik Winners Side', 'VoiD'],
   ['Charliedaking Wolf Winners Semis', 'Charliedaking'],
   ['Liquid Dabuz', 'Dabuz'],
-  ['ZETA/あcola', 'あcola'],
-  ['ZETA|あcola #スマブラSP #マエスマ', 'あcola'],
+  ['ZETA/あcola', 'acola'],
+  ['ZETA|あcola #スマブラSP #マエスマ', 'acola'],
   ['Yone_pi ピチュー #スマブラSP #マエスマ', 'Yone_pi'],
   ['Larry Lurr', 'Larry Lurr'],
   ['The Great Gonzales', 'The Great Gonzales'],
@@ -102,6 +102,15 @@ const names: Array<[string, string]> = [
   ['Kendrick Olimar', 'Kendrick Olimar'],
   ['Kendrick (Olimar)', 'Kendrick Olimar'],
   ['Kendrick', 'Kendrick Olimar'],
+  ['あcola', 'acola'],
+  ['あcola Mr', 'acola'],
+  ['あcola Mr. Game & Watch', 'acola'],
+  ['あcola Mr.ゲーム＆ウォッチ', 'acola'],
+  ['ZETA | あcola Mr.ゲーム＆ウォッチ', 'acola'],
+  ['Maister Mr', 'Maister'],
+  ['Maister Mr.ゲーム＆ウォッチ', 'Maister'],
+  ['Mr E', 'Mr E'],
+  ['Mr. E', 'Mr. E'],
   ['!!!', ''],
   ['# 1894QF Samsora', 'Samsora'],
   ['& Gackt', 'Gackt'],
@@ -675,6 +684,9 @@ const modeCases: Array<[string, ReturnType<typeof detectGameMode>, Partial<Match
   ['squad in player name', 'squad', { player2: 'Zackray Squad Strike' }],
   ['crew battle', 'crews', { player2: 'Crew Battle' }],
   ['slash doubles', 'doubles', { player1: 'MkLeo / Tweek', player2: 'Sparg0 / Sonix' }],
+  ['plus doubles', 'doubles', { player1: '6WX + Uno', player2: 'Porkaye + SAUCE' }],
+  ['plus crews', 'crews', { player1: 'ドラ右+オムアツ+リム', player2: 'roro+R+りてしあ' }],
+  ['wrapped plus tag stays singles', 'singles', { player1: '+HOPE+', player2: 'Zomba' }],
   ['ampersand tag stays singles', 'singles', { player2: 'Trile & Error' }],
 ]
 for (const [label, expected, patch] of modeCases) {
@@ -688,19 +700,32 @@ const mixed = [
   sampleMatch(),
   sampleMatch({ id: 'yt-dubs', tournament: 'Smash Ultimate Doubles' }),
   sampleMatch({ id: 'yt-squad', tournament: 'Smash Ultimate Squad Strike' }),
+  sampleMatch({ id: 'yt-plus', player1: '6WX + Uno', player2: 'Porkaye + SAUCE' }),
+  sampleMatch({ id: 'yt-crew', player1: 'A+B+C', player2: 'D+E+F' }),
 ]
 const singlesOnly = filterMatches(mixed, EMPTY_FILTERS)
 const doublesOnly = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'doubles' })
+const crewsOnly = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'crews' })
 const allModes = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'all' })
 const singlesOk = singlesOnly.length === 1 && singlesOnly[0]?.id === 'yt-abc'
-const doublesOk = doublesOnly.length === 1 && doublesOnly[0]?.id === 'yt-dubs'
-const allOk = allModes.length === 3
+const doublesOk =
+  doublesOnly.length === 2 &&
+  doublesOnly.some((match) => match.id === 'yt-dubs') &&
+  doublesOnly.some((match) => match.id === 'yt-plus')
+const crewsOk = crewsOnly.length === 1 && crewsOnly[0]?.id === 'yt-crew'
+const allOk = allModes.length === 5
+const plusSearch = filterMatches(mixed, { ...EMPTY_FILTERS, mode: 'doubles', player1: 'Uno' })
+const plusSearchOk = plusSearch.length === 1 && plusSearch[0]?.id === 'yt-plus'
 if (!singlesOk) failed += 1
 if (!doublesOk) failed += 1
+if (!crewsOk) failed += 1
 if (!allOk) failed += 1
+if (!plusSearchOk) failed += 1
 console.log(singlesOk ? 'OK  ' : 'FAIL', 'default archive view is singles')
 console.log(doublesOk ? 'OK  ' : 'FAIL', 'doubles tab keeps doubles VODs')
+console.log(crewsOk ? 'OK  ' : 'FAIL', 'crews tab keeps plus-separated crews')
 console.log(allOk ? 'OK  ' : 'FAIL', 'all tab keeps every mode')
+console.log(plusSearchOk ? 'OK  ' : 'FAIL', 'doubles search matches one teammate name')
 
 console.log('\n--- archive stats ---')
 const ganonSet = sampleMatch({

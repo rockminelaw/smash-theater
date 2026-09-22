@@ -187,6 +187,40 @@ a {
   outline: none;
 }
 
+.suggest-input-wrap {
+  position: relative;
+  display: block;
+  min-width: 160px;
+}
+
+.suggest-input-wrap input {
+  width: 100%;
+  padding-right: 1.6rem;
+}
+
+.suggest-clear {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.suggest-clear:hover,
+.suggest-clear:focus-visible {
+  color: var(--text);
+  background: var(--bg-raise-2);
+}
+
 .field select {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -515,7 +549,37 @@ a {
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
-  max-width: 16rem;
+  max-width: 18rem;
+}
+
+.player.is-team {
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.player-right.is-team {
+  align-items: flex-start;
+}
+
+.team-stack {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.team-member {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.player-left .team-member {
+  justify-content: end;
+}
+
+.player-right .team-member {
+  justify-content: start;
 }
 
 .player-left {
@@ -534,9 +598,35 @@ a {
   white-space: nowrap;
 }
 
+.team-member strong {
+  font-size: 0.92rem;
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;
+  gap: 0.22rem;
+  flex: none;
+  justify-content: inherit;
+}
+
+.team-stock {
+  opacity: 0.95;
+}
+
+.mode-pill {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgb(154 79 184 / 0.28);
+  color: #f3f3f5;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
   gap: 0.22rem;
   flex: none;
   justify-content: inherit;

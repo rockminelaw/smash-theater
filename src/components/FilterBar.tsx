@@ -19,6 +19,8 @@ type Props = {
 export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts, onChange }: Props) {
   const update = (patch: Partial<MatchFilters>) => onChange({ ...filters, ...patch })
   const minDate = dateMin && dateMin > ULTIMATE_RELEASE_DATE ? dateMin : ULTIMATE_RELEASE_DATE
+  const teamMode = filters.mode === 'doubles' || filters.mode === 'crews'
+  const playerLabel = teamMode ? 'Teammate' : 'Player'
 
   const swap = () => {
     onChange({
@@ -40,12 +42,12 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
       />
       <div className="vs-row">
         <CharacterPicker
-          label="Player 1 character"
+          label={teamMode ? 'Team 1 character' : 'Player 1 character'}
           value={filters.char1}
           onChange={(char1) => update({ char1 })}
         />
         <SuggestInput
-          label="Player 1"
+          label={`${playerLabel} 1`}
           value={filters.player1}
           options={players}
           onChange={(player1) => update({ player1 })}
@@ -54,13 +56,13 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           VS
         </button>
         <SuggestInput
-          label="Player 2"
+          label={`${playerLabel} 2`}
           value={filters.player2}
           options={players}
           onChange={(player2) => update({ player2 })}
         />
         <CharacterPicker
-          label="Player 2 character"
+          label={teamMode ? 'Team 2 character' : 'Player 2 character'}
           value={filters.char2}
           onChange={(char2) => update({ char2 })}
         />

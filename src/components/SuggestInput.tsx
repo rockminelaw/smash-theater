@@ -20,6 +20,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
   const fieldRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const suggestions = useMemo(() => rankNameSuggestions(options, value), [options, value])
+  const hasValue = value.trim().length > 0
 
   useEffect(() => {
     setScrollTop(0)
@@ -56,25 +57,45 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
   const padBottom = Math.max(0, (suggestions.length - start - visible.length) * ITEM_HEIGHT)
 
   return (
-    <div className="field" ref={fieldRef}>
+    <div className={`field suggest-field${hasValue ? ' has-value' : ''}`} ref={fieldRef}>
       <label>
         <span>{label}</span>
-        <input
-          ref={inputRef}
-          value={value}
-          onChange={(event) => {
-            setOpen(true)
-            onChange(event.target.value)
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => {
-            window.setTimeout(() => {
-              if (document.activeElement === inputRef.current || ignoreBlur.current || hoveringList.current) return
-              setOpen(false)
-            }, 0)
-          }}
-          autoComplete="off"
-        />
+        <span className="suggest-input-wrap">
+          <input
+            ref={inputRef}
+            value={value}
+            onChange={(event) => {
+              setOpen(true)
+              onChange(event.target.value)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                if (document.activeElement === inputRef.current || ignoreBlur.current || hoveringList.current) return
+                setOpen(false)
+              }, 0)
+            }}
+            autoComplete="off"
+          />
+          {hasValue && (
+            <button
+              type="button"
+              className="suggest-clear"
+              aria-label={`Clear ${label}`}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                ignoreBlur.current = true
+              }}
+              onClick={() => {
+                onChange('')
+                setOpen(false)
+                inputRef.current?.focus()
+              }}
+            >
+              ×
+            </button>
+          )}
+        </span>
       </label>
       {open && suggestions.length > 0 && (
         <ul

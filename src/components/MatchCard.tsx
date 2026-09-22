@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { getCharacter } from '../data/characters'
 import { getStage } from '../data/stages'
 import { formatDate, parseVod, setScore, uniqueInOrder } from '../lib/format'
+import { detectGameMode, teamMembers } from '../lib/gameMode'
 import type { Match } from '../types'
 import { CharacterChip } from './CharacterChip'
 
@@ -14,45 +15,138 @@ function hasRecordedScore(label: string) {
   return label !== '—'
 }
 
+function sideRoster(name: string, characterIds: string[]) {
+  const players = teamMembers(name)
+  if (players.length <= 1) {
+    return { mode: 'solo' as const, players: [{ name, characters: characterIds }] }
+  }
+  if (players.length === characterIds.length && characterIds.length > 0) {
+    return {
+      mode: 'paired' as const,
+      players: players.map((player, index) => ({
+        name: player,
+        characters: [characterIds[index]],
+      })),
+    }
+  }
+  return {
+    mode: 'team' as const,
+    players: players.map((player) => ({ name: player, characters: [] as string[] })),
+    teamCharacters: characterIds,
+  }
+}
+
+function TeamBlock({
+  name,
+  characterIds,
+  align,
+}: {
+  name: string
+  characterIds: string[]
+  align: 'left' | 'right'
+}) {
+  const roster = sideRoster(name, characterIds)
+
+  if (roster.mode === 'solo') {
+    const row = roster.players[0]
+    return (
+      <div className={`player player-${align}`}>
+        {align === 'right' && (
+          <div className="chip-row">
+            {row.characters.map((id) => (
+              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+            ))}
+          </div>
+        )}
+        <strong title={row.name}>{row.name}</strong>
+        {align === 'left' && (
+          <div className="chip-row">
+            {row.characters.map((id) => (
+              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`player player-${align} is-team`}>
+      {align === 'right' && roster.mode === 'team' && roster.teamCharacters.length > 0 && (
+        <div className="chip-row team-stock">
+          {roster.teamCharacters.map((id) => (
+            <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+          ))}
+        </div>
+      )}
+      <div className="team-stack">
+        {roster.players.map((row) => (
+          <div key={row.name} className="team-member">
+            {align === 'right' && row.characters.length > 0 && (
+              <div className="chip-row">
+                {row.characters.map((id) => (
+                  <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+                ))}
+              </div>
+            )}
+            <strong title={row.name}>{row.name}</strong>
+            {align === 'left' && row.characters.length > 0 && (
+              <div className="chip-row">
+                {row.characters.map((id) => (
+                  <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {align === 'left' && roster.mode === 'team' && roster.teamCharacters.length > 0 && (
+        <div className="chip-row team-stock">
+          {roster.teamCharacters.map((id) => (
+            <CharacterChip key={id} character={getCharacter(id)} size="sm" />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MatchCard({ match, onDelete }: Props) {
   const [open, setOpen] = useState(false)
   const score = setScore(match.games, match.setScore)
   const vod = parseVod(match.vodUrl)
+  const mode = detectGameMode(match)
+  const teamMode = mode === 'doubles' || mode === 'crews'
   const p1Chars = uniqueInOrder(match.games.map((game) => game.p1Character))
   const p2Chars = uniqueInOrder(match.games.map((game) => game.p2Character))
   const stages = uniqueInOrder(
     match.games.map((game) => getStage(game.stage)?.name ?? '').filter(Boolean),
   )
   const gamesWithDetail = match.games.filter((game) => game.stage || game.winner)
+  // Character-only multi-game rows are teammate rosters for doubles/crews, not set games.
+  const rosterOnly =
+    teamMode && !hasRecordedScore(score.label) && stages.length === 0 && gamesWithDetail.length === 0
   const showDetails =
-    hasRecordedScore(score.label) || stages.length > 0 || gamesWithDetail.length > 0 || Boolean(match.startggUrl)
+    hasRecordedScore(score.label) ||
+    stages.length > 0 ||
+    (!rosterOnly && gamesWithDetail.length > 0) ||
+    Boolean(match.startggUrl)
 
   return (
-    <article className="match-card">
+    <article className={`match-card${teamMode ? ` is-${mode}` : ''}`}>
       <time className="match-date" dateTime={match.date}>
         {formatDate(match.date)}
       </time>
-      <p className="match-round">{match.event}</p>
+      <p className="match-round">
+        {match.event}
+        {teamMode && <span className="mode-pill">{mode === 'crews' ? 'Crews' : 'Doubles'}</span>}
+      </p>
       <p className="match-channel">{match.notes}</p>
 
       <div className="matchup">
-        <div className="player player-left">
-          <strong>{match.player1}</strong>
-          <div className="chip-row">
-            {p1Chars.map((id) => (
-              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
-            ))}
-          </div>
-        </div>
+        <TeamBlock name={match.player1} characterIds={p1Chars} align="left" />
         <span className="vs-mini">VS</span>
-        <div className="player player-right">
-          <div className="chip-row">
-            {p2Chars.map((id) => (
-              <CharacterChip key={id} character={getCharacter(id)} size="sm" />
-            ))}
-          </div>
-          <strong>{match.player2}</strong>
-        </div>
+        <TeamBlock name={match.player2} characterIds={p2Chars} align="right" />
       </div>
 
       <a className="watch-link" href={match.vodUrl} target="_blank" rel="noreferrer" aria-label="Watch VOD">
@@ -99,7 +193,7 @@ export function MatchCard({ match, onDelete }: Props) {
               </a>
             </p>
           )}
-          {gamesWithDetail.length > 0 && (
+          {!rosterOnly && gamesWithDetail.length > 0 && (
             <ol className="game-list">
               {match.games.map((game, index) => {
                 const stage = getStage(game.stage)

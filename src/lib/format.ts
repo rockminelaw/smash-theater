@@ -1,4 +1,5 @@
 import { playerKey } from '../importer/playerName'
+import { teamMembers } from './gameMode'
 
 export type VodInfo = {
   type: 'youtube' | 'twitch' | 'other'
@@ -95,12 +96,16 @@ function nameTokens(value: string) {
     if (folded) tokens.add(folded)
   }
   add(value)
-  const parts = value.split(/[^\p{L}\p{N}$_+.-]+/u).filter(Boolean)
-  for (const part of parts) {
-    add(part)
-    add(playerKey(part))
-  }
   add(playerKey(value))
+  for (const member of teamMembers(value)) {
+    add(member)
+    add(playerKey(member))
+    const parts = member.split(/[^\p{L}\p{N}$_-]+/u).filter(Boolean)
+    for (const part of parts) {
+      add(part)
+      add(playerKey(part))
+    }
+  }
   return tokens
 }
 

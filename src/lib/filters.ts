@@ -1,6 +1,6 @@
 import type { Match, MatchFilters } from '../types'
 import { namesMatch, textMatch } from './format'
-import { modeMatches } from './gameMode'
+import { modeMatches, teamMembers } from './gameMode'
 
 function charsFor(match: Match, side: 1 | 2) {
   return match.games.map((game) => (side === 1 ? game.p1Character : game.p2Character))
@@ -121,11 +121,13 @@ export function uniquePlayers(matches: Match[]) {
   const byKey = new Map<string, string>()
   for (const match of matches) {
     for (const name of [match.player1, match.player2]) {
-      const cleaned = name.trim()
-      if (!cleaned) continue
-      const key = cleaned.toLowerCase()
-      const current = byKey.get(key)
-      if (!current || cleaned.length < current.length) byKey.set(key, cleaned)
+      for (const member of teamMembers(name)) {
+        const cleaned = member.trim()
+        if (!cleaned) continue
+        const key = cleaned.toLowerCase()
+        const current = byKey.get(key)
+        if (!current || cleaned.length < current.length) byKey.set(key, cleaned)
+      }
     }
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b))

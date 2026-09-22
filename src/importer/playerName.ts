@@ -13,8 +13,12 @@ const LEADING_ROUND = /^(?:finals?|winners|losers|lowers|grand)\s+/i
 const PRESERVED_PLAYER_NAMES = ['Kendrick Olimar']
 
 /** Short forms that should display as a preserved full tag. */
-const PLAYER_NAME_ALIASES = new Map([['kendrick', 'Kendrick Olimar']])
+const PLAYER_NAME_ALIASES = new Map([
+  ['kendrick', 'Kendrick Olimar'],
+  ['あcola', 'acola'],
+])
 
+/** Leftover after stripping "Mr. Game & Watch" / "Mr.ゲーム＆ウォッチ". */
 const TEAM_PREFIXES = [
   'echo fox mvg',
   'zeta division',
@@ -95,7 +99,7 @@ function stripCharacterNames(raw: string) {
     if (/^[\x00-\x7F]+$/.test(alias) && alias.length < 3) continue
     remaining = remaining.replace(aliasPattern(alias), ' ')
   }
-  return remaining.replace(/\s+/g, ' ').trim()
+  return remaining.replace(/\s+Mr\.?\s*$/i, ' ').replace(/\s+/g, ' ').trim()
 }
 
 function takeSponsorTag(raw: string) {
