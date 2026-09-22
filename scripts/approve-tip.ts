@@ -96,7 +96,9 @@ async function saveStartggSlug(tournament: string, url: string) {
   const key = tournamentKey(tournament)
   if (!key) return parsed
   const slugs = await readJson<Record<string, string>>(SLUGS, {})
-  slugs[key] = parsed.slug
+  slugs[key] = parsed.eventSlug
+    ? `https://www.start.gg/${parsed.eventSlug}`
+    : parsed.slug
   await writeFile(SLUGS, `${JSON.stringify(slugs, null, 2)}\n`, 'utf8')
   const state = await readJson<{ misses: Record<string, string>; done: Record<string, unknown> }>(STATE, {
     misses: {},

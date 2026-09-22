@@ -14,13 +14,13 @@ import {
   tournamentFits,
   type StartggSet,
 } from './startggMap'
-import { parseStartggUrl, startggSlugFromMatch } from '../lib/startggUrl'
+import { parseStartggUrl } from '../lib/startggUrl'
 
 const API = 'https://api.start.gg/gql/alpha'
 export const ULTIMATE_VIDEOGAME_ID = 1386
-const STATE_VERSION = 3
-const MISS_VERSION = 3
-export const MATCHER_VERSION = 2
+export const STATE_VERSION = 3
+const MISS_VERSION = 4
+export const MATCHER_VERSION = 4
 
 export class StartggRateLimitError extends Error {
   constructor(message = 'start.gg rate limit exceeded') {
@@ -75,6 +75,26 @@ type EventSetsData = {
   } | null
 }
 
+export type StartggDoneEntry = {
+  slug: string
+  eventId: string
+  at: string
+  matcherVersion?: number
+  /** True only after a full set pull produced no further VOD updates. */
+  exhausted?: boolean
+  lastMatched?: number
+  /** Cumulative VODs updated across passes for this cached event. */
+  totalMatched?: number
+  lastAttempted?: number
+}
+
+export type StartggState = {
+  version?: number
+  missVersion?: number
+  misses: Record<string, string>
+  done: Record<string, StartggDoneEntry>
+}
+
 const EVENT_FIELDS = `
       id
       name
@@ -117,6 +137,23 @@ query SearchTournamentsAny($name: String!, $perPage: Int!) {
 const TOURNAMENT_BY_SLUG = `
 query TournamentBySlug($slug: String!) {
   tournament(slug: $slug) {${EVENT_FIELDS}  }
+}
+`
+
+const EVENT_BY_SLUG = `
+query EventBySlug($slug: String!) {
+  event(slug: $slug) {
+    id
+    name
+    numEntrants
+    videogame { id }
+    tournament {
+      id
+      name
+      slug
+      startAt
+    }
+  }
 }
 `
 
@@ -163,13 +200,6 @@ query SetGames($id: ID!) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export type StartggState = {
-  version?: number
-  missVersion?: number
-  misses: Record<string, string>
-  done: Record<string, { slug: string; eventId: string; at: string; matcherVersion?: number }>
 }
 
 export function tournamentKey(name: string) {
@@ -366,9 +396,10 @@ async function listEventSets(token: string, eventId: string, options: GraphqlOpt
   const sets: StartggSet[] = []
   let page = 1
   let totalPages = 1
-  let perPage = 20
+  let perPage = 40
+  const maxPages = 500
   const deadline = options.deadline ?? Number.POSITIVE_INFINITY
-  while (page <= totalPages && page <= 200) {
+  while (page <= totalPages && page <= maxPages) {
     if (Date.now() >= deadline) {
       options.onStatus?.(`Time budget reached after ${sets.length} sets. Using this batch so far.`)
       return { sets, truncated: true }
@@ -405,7 +436,14 @@ async function listEventSets(token: string, eventId: string, options: GraphqlOpt
       throw error
     }
   }
-  return { sets, truncated: false }
+  // Hit the page cap before start.gg finished — treat as truncated so we retry later.
+  const truncated = page <= totalPages
+  if (truncated) {
+    options.onStatus?.(
+      `Stopped at page ${maxPages} with ${sets.length} sets (${totalPages} pages total). Will retry later for the rest.`,
+    )
+  }
+  return { sets, truncated }
 }
 
 async function hydrateSetGames(token: string, set: StartggSet, options: GraphqlOptions = {}) {
@@ -436,21 +474,52 @@ function shouldRetryMiss(state: StartggState, key: string, refresh: boolean) {
   return Number.isNaN(age) || age > 14 * 24 * 60 * 60 * 1000
 }
 
-function knownSlugsFor(group: Match[], key: string, slugs?: Record<string, string>) {
-  const found = new Set<string>()
+function shouldRetryExhausted(done: StartggDoneEntry, skipCached?: boolean) {
+  // Recent/daily runs should always retry so newly scraped VODs get a chance.
+  if (!skipCached) return true
+  const age = Date.now() - Date.parse(done.at)
+  // Full backfill re-opens exhausted tournaments weekly for late VODs.
+  return Number.isNaN(age) || age > 7 * 24 * 60 * 60 * 1000
+}
+
+function knownLinksFor(group: Match[], key: string, slugs?: Record<string, string>) {
+  const tournamentSlugs = new Set<string>()
+  const eventSlugs = new Set<string>()
   const mapped = slugs?.[key]
   if (mapped) {
     const raw = mapped.includes('://')
       ? mapped
       : `https://www.start.gg/${mapped.startsWith('tournament/') ? mapped : `tournament/${mapped}`}/details`
     const parsed = parseStartggUrl(raw)
-    if (parsed) found.add(parsed.slug)
+    if (parsed) {
+      tournamentSlugs.add(parsed.slug)
+      if (parsed.eventSlug) eventSlugs.add(parsed.eventSlug)
+    }
   }
   for (const match of group) {
-    const slug = startggSlugFromMatch(match)
-    if (slug) found.add(slug)
+    const parsed = parseStartggUrl(match.startggUrl ?? '')
+    if (!parsed) continue
+    tournamentSlugs.add(parsed.slug)
+    if (parsed.eventSlug) eventSlugs.add(parsed.eventSlug)
   }
-  return [...found]
+  return { tournamentSlugs: [...tournamentSlugs], eventSlugs: [...eventSlugs] }
+}
+
+function knownSlugsFor(group: Match[], key: string, slugs?: Record<string, string>) {
+  return knownLinksFor(group, key, slugs).tournamentSlugs
+}
+
+function tournamentPageUrl(slug?: string | null) {
+  if (!slug) return undefined
+  const path = slug.startsWith('tournament/') ? slug : `tournament/${slug}`
+  return `https://www.start.gg/${path}/details`
+}
+
+function groupStillNeedsDetails(group: Match[], byId: Map<string, Match>) {
+  return group.some((match) => {
+    const current = byId.get(match.id) ?? match
+    return needsStartggDetails(current)
+  })
 }
 
 function isPendingTournament(
@@ -458,18 +527,61 @@ function isPendingTournament(
   state: StartggState,
   options: { skipCached?: boolean; refresh?: boolean; slugs?: Record<string, string> },
   group: Match[] = [],
+  byId?: Map<string, Match>,
 ) {
   if (options.refresh) return true
+  const stillNeed = byId ? groupStillNeedsDetails(group, byId) : group.some(needsStartggDetails)
+  if (!stillNeed) return false
+
   const known = knownSlugsFor(group, key, options.slugs)
-  const doneSlug = state.done[key]?.slug ?? ''
-  if (known.length && !known.some((slug) => slug === doneSlug || slug.replace(/^tournament\//, '') === doneSlug.replace(/^tournament\//, ''))) {
+  const done = state.done[key]
+  const doneSlug = done?.slug ?? ''
+  if (
+    known.length &&
+    !known.some(
+      (slug) =>
+        slug === doneSlug ||
+        slug.replace(/^tournament\//, '') === doneSlug.replace(/^tournament\//, ''),
+    )
+  ) {
     return true
   }
   if (known.length && state.misses[key]) return true
-  if (options.skipCached && state.done[key] && (state.done[key]?.matcherVersion ?? 0) >= MATCHER_VERSION) {
-    return false
+
+  if (done && (done.matcherVersion ?? 0) >= MATCHER_VERSION && done.exhausted) {
+    return shouldRetryExhausted(done, options.skipCached)
   }
+  if (done?.eventId) return true
+
   return shouldRetryMiss(state, key, false)
+}
+
+async function fetchEventBySlug(token: string, eventSlug: string, options: GraphqlOptions = {}) {
+  try {
+    const data = await graphql<{
+      event?: {
+        id?: string | number
+        name?: string
+        numEntrants?: number | null
+        videogame?: { id?: string | number | null } | null
+        tournament?: TournamentNode | null
+      } | null
+    }>(token, EVENT_BY_SLUG, { slug: eventSlug }, options)
+    const event = data.event
+    if (!event?.id || !isUltimateEvent(event)) return undefined
+    const tournament = event.tournament
+    if (!tournament) return undefined
+    return {
+      tournament: {
+        ...tournament,
+        events: [{ id: event.id, name: event.name, numEntrants: event.numEntrants, videogame: event.videogame }],
+      },
+      event: { id: event.id, name: event.name, numEntrants: event.numEntrants, videogame: event.videogame },
+    }
+  } catch (error) {
+    if (error instanceof StartggBudgetError || error instanceof StartggRateLimitError) throw error
+    return undefined
+  }
 }
 
 export async function enrichFromStartgg(options: {
@@ -510,9 +622,10 @@ export async function enrichFromStartgg(options: {
 
   const pending = [...groups.entries()]
     .sort((a, b) => b[1].length - a[1].length)
-    .filter(([key, group]) => isPendingTournament(key, state, options, group))
+    .filter(([key, group]) => isPendingTournament(key, state, options, group, byId))
   const batch = pending.slice(0, options.limit ?? pending.length)
-  const deadline = options.minutes && options.minutes > 0 ? Date.now() + options.minutes * 60_000 : Number.POSITIVE_INFINITY
+  const deadline =
+    options.minutes && options.minutes > 0 ? Date.now() + options.minutes * 60_000 : Number.POSITIVE_INFINITY
   let updated = 0
   let scanned = 0
   let searched = 0
@@ -545,60 +658,129 @@ export async function enrichFromStartgg(options: {
       deadline,
       onStatus: (message: string) => options.onProgress?.({ tournament: query, message }),
     }
-    let nodes: TournamentNode[]
-    try {
-      nodes = await searchTournaments(
-        options.token,
-        query,
-        request,
-        medianDate(group),
-        knownSlugsFor(group, key, options.slugs),
+
+    const cached = state.done[key]
+    let tournament: TournamentNode | undefined
+    let event: NonNullable<TournamentNode['events']>[number] | undefined
+    const links = knownLinksFor(group, key, options.slugs)
+    let abortBatch: 'budget' | 'rate' | null = null
+
+    // Prefer an explicit event URL from a tip/VOD over a cached tournament guess.
+    if (links.eventSlugs.length && !options.refresh) {
+      for (const eventSlug of links.eventSlugs) {
+        options.onProgress?.({
+          tournament: query,
+          message: `Using pasted start.gg event ${eventSlug}…`,
+        })
+        try {
+          const resolved = await fetchEventBySlug(options.token, eventSlug, request)
+          if (resolved) {
+            tournament = resolved.tournament
+            event = resolved.event
+            break
+          }
+        } catch (error) {
+          if (error instanceof StartggBudgetError) {
+            abortBatch = 'budget'
+            break
+          }
+          if (error instanceof StartggRateLimitError) {
+            abortBatch = 'rate'
+            break
+          }
+        }
+      }
+    }
+
+    if (abortBatch === 'budget') {
+      options.onProgress?.({
+        tournament: query,
+        message: 'Time budget reached. Saving this batch; run again to continue.',
+      })
+      break
+    }
+    if (abortBatch === 'rate') {
+      options.onProgress?.({
+        tournament: query,
+        message: 'start.gg rate limit hit. Stopping this run; the next run will resume.',
+      })
+      break
+    }
+
+    // Reuse a cached event when it has ever matched VODs (lastMatched alone resets to 0).
+    // Legacy done rows predate totalMatched — assume those event ids were useful.
+    const everMatched =
+      cached?.totalMatched === undefined && cached?.lastMatched === undefined
+        ? Boolean(cached?.eventId)
+        : (cached.totalMatched ?? cached.lastMatched ?? 0) > 0
+    const reuseCached = !tournament && Boolean(cached?.eventId) && !options.refresh && everMatched
+
+    if (reuseCached) {
+      tournament = { name: query, slug: cached!.slug, events: [{ id: cached!.eventId, name: 'cached' }] }
+      event = { id: cached!.eventId, name: 'cached' }
+      options.onProgress?.({
+        tournament: query,
+        message: `Reusing cached start.gg event ${cached!.eventId} for unmatched VODs…`,
+      })
+    } else if (!tournament || !event?.id) {
+      let nodes: TournamentNode[]
+      try {
+        nodes = await searchTournaments(
+          options.token,
+          query,
+          request,
+          medianDate(group),
+          links.tournamentSlugs,
+        )
+      } catch (error) {
+        if (error instanceof StartggBudgetError) {
+          options.onProgress?.({
+            tournament: query,
+            message: 'Time budget reached. Saving this batch; run again to continue.',
+          })
+          break
+        }
+        if (error instanceof StartggRateLimitError) {
+          options.onProgress?.({
+            tournament: query,
+            message: 'start.gg rate limit hit. Stopping this run; the next run will resume.',
+          })
+          break
+        }
+        options.onProgress?.({
+          tournament: query,
+          message: `Search failed (${error instanceof Error ? error.message : 'error'}). Skipping.`,
+        })
+        continue
+      }
+
+      const filtered = nodes.filter((node) =>
+        tournamentFits(query, node.name ?? '', node.slug ?? '', node.startAt),
       )
-    } catch (error) {
-      if (error instanceof StartggBudgetError) {
+      tournament = pickTournament(query, filtered, medianDate(group))
+      event = pickUltimateEvent(tournament?.events)
+      if (!tournament || !event?.id) {
+        state.misses[key] = new Date().toISOString()
+        delete state.done[key]
+        await options.onCheckpoint?.(state)
         options.onProgress?.({
           tournament: query,
-          message: 'Time budget reached. Saving this batch; run again to continue.',
+          message: `No start.gg tournament matched ${query}.`,
         })
-        break
+        continue
       }
-      if (error instanceof StartggRateLimitError) {
-        options.onProgress?.({
-          tournament: query,
-          message: 'start.gg rate limit hit. Stopping this run; the next run will resume.',
-        })
-        break
-      }
-      options.onProgress?.({
-        tournament: query,
-        message: `Search failed (${error instanceof Error ? error.message : 'error'}). Skipping.`,
-      })
-      continue
     }
 
-    const filtered = nodes.filter((node) =>
-      tournamentFits(query, node.name ?? '', node.slug ?? '', node.startAt),
-    )
-    const tournament = pickTournament(query, filtered, medianDate(group))
-    const event = pickUltimateEvent(tournament?.events)
-    if (!tournament || !event?.id) {
-      state.misses[key] = new Date().toISOString()
-      await options.onCheckpoint?.(state)
-      options.onProgress?.({
-        tournament: query,
-        message: `No start.gg tournament matched ${query}.`,
-      })
-      continue
-    }
-
+    const eventId = String(event!.id)
+    const startggUrl = tournamentPageUrl(tournament?.slug ?? cached?.slug)
     options.onProgress?.({
       tournament: query,
-      message: `Fetching sets from ${tournament.name} / ${event.name}…`,
+      message: `Fetching sets from ${tournament?.name ?? query} / ${event?.name ?? eventId}…`,
     })
     let sets: StartggSet[]
     let truncated = false
     try {
-      const listed = await listEventSets(options.token, String(event.id), request)
+      const listed = await listEventSets(options.token, eventId, request)
       sets = listed.sets
       truncated = listed.truncated
     } catch (error) {
@@ -622,50 +804,103 @@ export async function enrichFromStartgg(options: {
       })
       continue
     }
+
+    if (sets.length === 0) {
+      // Empty bracket payload — keep pending so a later run can retry.
+      state.done[key] = {
+        slug: tournament?.slug ?? cached?.slug ?? String(tournament?.id ?? key),
+        eventId,
+        at: new Date().toISOString(),
+        matcherVersion: MATCHER_VERSION,
+        exhausted: false,
+        lastMatched: 0,
+        totalMatched: cached?.totalMatched ?? 0,
+        lastAttempted: group.length,
+      }
+      await options.onCheckpoint?.(state)
+      options.onProgress?.({
+        tournament: query,
+        message: 'start.gg returned 0 sets for this event. Will retry later.',
+      })
+      continue
+    }
+
     options.onProgress?.({
       tournament: query,
-      message: `Matching ${group.length} VODs against ${sets.length} start.gg sets${setsHavePlayerNames(sets) ? '' : ' (no player names on sets)'}…`,
+      message: `Matching ${group.length} VODs against ${sets.length} start.gg sets${
+        setsHavePlayerNames(sets) ? '' : ' (no player names on sets)'
+      }…`,
     })
+
     let groupUpdated = 0
-    let timedOut = truncated
+    let hitDeadline = false
+    let stampedUrl = false
+    if (startggUrl) {
+      for (const [id, match] of byId) {
+        if (tournamentKey(match.tournament) !== key) continue
+        if (match.startggUrl === startggUrl) continue
+        byId.set(id, { ...match, startggUrl })
+        stampedUrl = true
+      }
+    }
     for (const match of group) {
       if (Date.now() >= deadline) {
-        timedOut = true
+        hitDeadline = true
         break
       }
-      const current = byId.get(match.id)
-      if (!current || !needsStartggDetails(current)) continue
-      const picked = pickBestSet(current, sets)
+      const latest = byId.get(match.id)
+      if (!latest || !needsStartggDetails(latest)) continue
+      const picked = pickBestSet(latest, sets)
       if (!picked) continue
       let detailed = picked
       try {
-        if (current.games.some((game) => !game.stage)) {
+        if (latest.games.some((game) => !game.stage)) {
           detailed = await hydrateSetGames(options.token, picked, request)
         }
       } catch (error) {
         if (error instanceof StartggBudgetError) {
-          timedOut = true
+          hitDeadline = true
           break
         }
         detailed = picked
       }
-      const mapped = mapStartggSet(current, detailed)
+      const mapped = mapStartggSet(latest, detailed)
       if (!mapped) continue
-      const next = applyStartggSet(current, mapped)
+      const next = applyStartggSet(latest, mapped)
+      const withUrl = startggUrl && !next.startggUrl ? { ...next, startggUrl } : next
       if (
-        JSON.stringify(next.games) === JSON.stringify(current.games) &&
-        JSON.stringify(next.setScore) === JSON.stringify(current.setScore)
+        JSON.stringify(withUrl.games) === JSON.stringify(latest.games) &&
+        JSON.stringify(withUrl.setScore) === JSON.stringify(latest.setScore) &&
+        withUrl.startggUrl === latest.startggUrl
       ) {
         continue
       }
-      byId.set(next.id, next)
+      byId.set(withUrl.id, withUrl)
       updated += 1
       groupUpdated += 1
     }
 
-    if (groupUpdated > 0) await options.onWrite?.([...byId.values()])
-    if (timedOut) {
-      await options.onCheckpoint?.(state)
+    if (groupUpdated > 0 || stampedUrl) await options.onWrite?.([...byId.values()])
+
+    const stillNeed = groupStillNeedsDetails(group, byId)
+    // Only pause retries when a complete set pull found no new updates.
+    // Truncated pulls and empty/partial failures stay open.
+    const exhausted = !truncated && !hitDeadline && groupUpdated === 0
+    const totalMatched = (cached?.totalMatched ?? 0) + groupUpdated
+    delete state.misses[key]
+    state.done[key] = {
+      slug: tournament?.slug ?? cached?.slug ?? String(tournament?.id ?? key),
+      eventId,
+      at: new Date().toISOString(),
+      matcherVersion: MATCHER_VERSION,
+      exhausted: exhausted || !stillNeed,
+      lastMatched: groupUpdated,
+      totalMatched,
+      lastAttempted: group.length,
+    }
+    await options.onCheckpoint?.(state)
+
+    if (hitDeadline) {
       options.onProgress?.({
         tournament: query,
         message: `Time budget reached after matching ${groupUpdated} VODs. Saving this batch; run again to continue.`,
@@ -673,20 +908,22 @@ export async function enrichFromStartgg(options: {
       break
     }
 
-    delete state.misses[key]
-    state.done[key] = {
-      slug: tournament.slug ?? String(tournament.id),
-      eventId: String(event.id),
-      at: new Date().toISOString(),
-      matcherVersion: MATCHER_VERSION,
-    }
-    await options.onCheckpoint?.(state)
     options.onProgress?.({
       tournament: query,
-      message: `Matched ${groupUpdated} of ${group.length} VODs.`,
+      message:
+        `Matched ${groupUpdated} of ${group.length} VODs` +
+        (truncated
+          ? ' (set list truncated; will retry for the rest).'
+          : stillNeed && !exhausted
+            ? ' (more still unmatched; will retry).'
+            : exhausted && stillNeed
+              ? ' (no new matches this pass; pausing retries until the matcher improves).'
+              : '.'),
     })
   }
 
-  const remaining = [...groups.entries()].filter(([key, group]) => isPendingTournament(key, state, options, group)).length
+  const remaining = [...groups.entries()].filter(([key, group]) =>
+    isPendingTournament(key, state, options, group, byId),
+  ).length
   return { matches: [...byId.values()], updated, scanned, searched, remaining, state }
 }

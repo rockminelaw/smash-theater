@@ -394,6 +394,9 @@ export function roundKey(text: string) {
   if (winnersRound?.[1]) return `wr${winnersRound[1]}`
   const losersRound = value.match(/loser[s']*\s*(?:bracket\s*)?(?:round|r)\s*(\d+)/i)
   if (losersRound?.[1]) return `lr${losersRound[1]}`
+  // YouTube titles often say only "Round 7"; start.gg usually prefixes Winners/Losers.
+  const bareRound = value.match(/\brounds?\s*(\d+)\b/i)
+  if (bareRound?.[1]) return `r${bareRound[1]}`
   if (/top\s*8|決勝トーナメント/.test(value)) return 'top8'
   if (/top\s*16/.test(value)) return 'top16'
   if (/準決勝/.test(value)) return 'sf'
@@ -406,7 +409,18 @@ export function roundsMatch(event: string, fullRoundText?: string | null) {
   if (!event || !fullRoundText) return false
   const left = roundKey(event)
   const right = roundKey(fullRoundText)
-  return Boolean(left && right && left === right)
+  if (!left || !right) return false
+  if (left === right) return true
+  // "Round 7" can mean Winners Round 7 or Losers Round 7.
+  if (left.startsWith('r') && /^\d+$/.test(left.slice(1))) {
+    const n = left.slice(1)
+    return right === `wr${n}` || right === `lr${n}`
+  }
+  if (right.startsWith('r') && /^\d+$/.test(right.slice(1))) {
+    const n = right.slice(1)
+    return left === `wr${n}` || left === `lr${n}`
+  }
+  return false
 }
 
 export function mapCharacterName(name?: string | null) {
@@ -599,7 +613,7 @@ const AMBIGUOUS_ROUNDS = new Set(['top8', 'top16', 'set', 'pool', 'pools', 'roun
 function setsInSameRound(match: Match, sets: StartggSet[]) {
   const want = roundKey(match.event)
   if (!want || AMBIGUOUS_ROUNDS.has(want)) return []
-  return sets.filter((set) => roundKey(set.fullRoundText ?? '') === want)
+  return sets.filter((set) => roundsMatch(match.event, set.fullRoundText))
 }
 
 function pickFromRound(match: Match, sets: StartggSet[]) {
@@ -719,9 +733,11 @@ export function applyStartggSet(match: Match, mapped: MappedStartggSet): Match {
       winner: existing?.winner || incoming?.winner,
     }
   })
+  const hasRealScore = Boolean(match.setScore && (match.setScore.p1 > 0 || match.setScore.p2 > 0))
   return {
     ...match,
     games,
-    setScore: match.setScore ?? mapped.score,
+    // Don't keep placeholder 0-0 scores over a real start.gg result.
+    setScore: hasRealScore ? match.setScore : mapped.score ?? match.setScore,
   }
 }

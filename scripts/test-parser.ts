@@ -23,6 +23,7 @@ import {
   pickBestSet,
   pickTournament,
   roundKey,
+  roundsMatch,
   searchQueriesForApi,
   searchQueryVariants,
   slugCandidates,
@@ -250,6 +251,10 @@ const ggCases: Array<[string, boolean]> = [
   ['score 3-2', parseDisplayScore('3-2')?.p1 === 3 && parseDisplayScore('3-2')?.p2 === 2],
   ['skip DQ score', parseDisplayScore('DQ') === undefined],
   ['round GF', roundKey('GRAND FINALS') === roundKey('Grand Final')],
+  ['bare Round 7 key', roundKey('Round 7') === 'r7'],
+  ['Round 7 matches Winners Round 7', roundsMatch('Round 7', 'Winners Round 7')],
+  ['Round 7 matches Losers Round 7', roundsMatch('Round 7', 'Losers Round 7')],
+  ['Round 7 does not match Round 8', !roundsMatch('Round 7', 'Winners Round 8')],
   ['character Pyra/Mythra', mapCharacterName('Pyra/Mythra') === 'pyra_mythra'],
   ['stage PS2', mapStageName('Pokémon Stadium 2') === 'pokemon_stadium_2'],
 ]
@@ -282,6 +287,18 @@ const flipped = applyStartggSet(
 const flippedOk = flipped.setScore?.p1 === 2 && flipped.setScore?.p2 === 3 && flipped.games[0]?.stage === 'pokemon_stadium_2'
 if (!flippedOk) failed += 1
 console.log(flippedOk ? 'OK  ' : 'FAIL', 'apply flipped start.gg score and stage')
+
+const zeroScoreReplaced = applyStartggSet(
+  sampleMatch({ setScore: { p1: 0, p2: 0 } }),
+  {
+    flipped: false,
+    score: { p1: 3, p2: 1 },
+    games: [{ p1Character: 'joker', p2Character: 'wario', stage: 'battlefield', winner: 1 }],
+  },
+)
+const zeroScoreOk = zeroScoreReplaced.setScore?.p1 === 3 && zeroScoreReplaced.setScore?.p2 === 1
+if (!zeroScoreOk) failed += 1
+console.log(zeroScoreOk ? 'OK  ' : 'FAIL', 'replace placeholder 0-0 scores with start.gg results')
 
 const goml = pickTournament('GOML 2026', [
   { name: 'Genesis X4', slug: 'genesis-x4' },

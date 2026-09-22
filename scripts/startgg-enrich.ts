@@ -75,19 +75,19 @@ const result = await enrichFromStartgg({
     console.log(`[${progress.tournament}] ${progress.message}`)
   },
   onWrite: async (matches) => {
-    await writeJson(ARCHIVE, matches)
+    await writeJson(ARCHIVE, sanitizeMatches(matches))
   },
   onCheckpoint: async (next) => {
     await writeJson(STATE, next)
   },
 })
 
-if (result.updated > 0) await writeJson(ARCHIVE, result.matches)
+if (result.updated > 0) await writeJson(ARCHIVE, sanitizeMatches(result.matches))
 await writeJson(STATE, result.state)
 
 console.log(
   `Done. Updated ${result.updated} VODs from ${result.searched} start.gg tournament lookups (${result.scanned} VODs considered).` +
     (result.remaining > 0
-      ? ` ${result.remaining} tournament names still need a lookup; run the backfill again to continue.`
-      : ' No remaining tournament names.'),
+      ? ` ${result.remaining} tournament names still have unmatched VODs; run the backfill again to continue.`
+      : ' No remaining tournament names with unmatched VODs.'),
 )

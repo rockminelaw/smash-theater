@@ -71,6 +71,11 @@ jobs:
               commit_progress || true
               exit "$STATUS"
             fi
+            if grep -q 'No remaining tournament names with unmatched VODs' /tmp/startgg.log; then
+              DONE=1
+              commit_progress || true
+              break
+            fi
             if grep -q 'No remaining tournament names' /tmp/startgg.log; then
               DONE=1
               commit_progress || true
@@ -78,12 +83,16 @@ jobs:
             fi
             if ! commit_progress; then
               echo "No archive or state changes this slice."
-              break
+              # Still continue if the log says work remains — state may be unchanged
+              # when a slice only hit rate limits before writing.
+              if ! grep -q 'still have unmatched VODs\|will retry\|Saving this batch' /tmp/startgg.log; then
+                break
+              fi
             fi
           done
 
           if [ "$DONE" = "1" ]; then
-            echo "Start.gg backfill has no remaining tournament names."
+            echo "Start.gg backfill has no remaining tournament names with unmatched VODs."
           else
             echo "Slice time budget reached. The next scheduled run will continue."
           fi
