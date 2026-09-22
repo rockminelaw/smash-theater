@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { rankNameSuggestions } from '../lib/filters'
 
 type Props = {
@@ -19,7 +19,11 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const fieldRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
-  const suggestions = useMemo(() => rankNameSuggestions(options, value), [options, value])
+  const deferredQuery = useDeferredValue(value)
+  const suggestions = useMemo(
+    () => rankNameSuggestions(options, deferredQuery),
+    [options, deferredQuery],
+  )
   const hasValue = value.trim().length > 0
 
   useEffect(() => {

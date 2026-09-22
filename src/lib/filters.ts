@@ -52,11 +52,13 @@ export function hasActiveFilters(filters: MatchFilters) {
 export function filterMatches(matches: Match[], filters: MatchFilters) {
   const active = { ...EMPTY_FILTERS, ...filters }
   if (!hasFieldFilters(active) && active.mode === 'all') return matches
+
+  const wantP1 = active.player1.trim()
+  const wantP2 = active.player2.trim()
+
   return matches.filter((match) => {
     const p1 = match.player1
     const p2 = match.player2
-    const wantP1 = active.player1.trim()
-    const wantP2 = active.player2.trim()
 
     let side1: 1 | 2 | null = null
     let side2: 1 | 2 | null = null
@@ -139,21 +141,31 @@ export function uniqueTags(matches: Match[]) {
   )
 }
 
-export function rankNameSuggestions(options: string[], query: string) {
+const SUGGESTION_LIMIT = 80
+
+export function rankNameSuggestions(options: string[], query: string, limit = SUGGESTION_LIMIT) {
   const q = query.trim().toLowerCase()
   if (!q) return options
-  return options
-    .filter((option) => option.toLowerCase().includes(q))
-    .map((option) => {
-      const lower = option.toLowerCase()
-      let rank = 3
-      if (lower === q) rank = 0
-      else if (namesMatch(option, query)) rank = 1
-      else if (lower.startsWith(q)) rank = 2
-      return { option, rank, len: option.length }
-    })
-    .sort((left, right) => left.rank - right.rank || left.len - right.len || left.option.localeCompare(right.option))
-    .map((row) => row.option)
+
+  const scored: Array<{ option: string; rank: number; len: number }> = []
+  for (const option of options) {
+    const lower = option.toLowerCase()
+    if (!lower.includes(q)) continue
+    let rank = 3
+    if (lower === q) rank = 0
+    else if (lower.startsWith(q)) rank = 1
+    else {
+      // Prefer a token that starts with the query ("Ken" → KEN over Kendrick).
+      const tokenHit = lower.split(/[^\p{L}\p{N}$_-]+/u).some((token) => token === q || token.startsWith(q))
+      rank = tokenHit ? 2 : 3
+    }
+    scored.push({ option, rank, len: option.length })
+  }
+
+  scored.sort(
+    (left, right) => left.rank - right.rank || left.len - right.len || left.option.localeCompare(right.option),
+  )
+  return scored.slice(0, limit).map((row) => row.option)
 }
 
 export function sortVisibleMatches(matches: Match[]) {

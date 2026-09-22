@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
 import { FilterBar } from '../components/FilterBar'
 import { MatchList } from '../components/MatchList'
 import { EMPTY_FILTERS, filterMatches, sortVisibleMatches, uniquePlayers, uniqueTags } from '../lib/filters'
@@ -13,7 +13,12 @@ type Props = {
 }
 
 export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
-  const visible = useMemo(() => sortVisibleMatches(filterMatches(matches, filters)), [matches, filters])
+  // Keep the player/tag inputs snappy; refiltering ~40k VODs can wait a frame.
+  const deferredFilters = useDeferredValue(filters)
+  const visible = useMemo(
+    () => sortVisibleMatches(filterMatches(matches, deferredFilters)),
+    [matches, deferredFilters],
+  )
   const inMode = useMemo(
     () => filterMatches(matches, { ...EMPTY_FILTERS, mode: filters.mode || 'singles' }),
     [matches, filters.mode],

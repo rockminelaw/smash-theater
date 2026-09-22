@@ -89,7 +89,21 @@ function foldToken(value: string) {
   return value.toLowerCase().replace(/^\$+/u, '')
 }
 
+const NAME_TOKEN_CACHE = new Map<string, Set<string>>()
+const FOLDED_KEY_CACHE = new Map<string, string>()
+
+function foldedPlayerKey(value: string) {
+  const hit = FOLDED_KEY_CACHE.get(value)
+  if (hit !== undefined) return hit
+  const folded = foldToken(playerKey(value))
+  FOLDED_KEY_CACHE.set(value, folded)
+  return folded
+}
+
 function nameTokens(value: string) {
+  const cached = NAME_TOKEN_CACHE.get(value)
+  if (cached) return cached
+
   const tokens = new Set<string>()
   const add = (token: string) => {
     const folded = foldToken(token)
@@ -106,14 +120,15 @@ function nameTokens(value: string) {
       add(playerKey(part))
     }
   }
+  NAME_TOKEN_CACHE.set(value, tokens)
   return tokens
 }
 
 export function namesMatch(value: string, query: string) {
   const needle = foldToken(query.trim())
   if (!needle) return false
-  const tag = foldToken(playerKey(value))
-  const queryTag = foldToken(playerKey(query))
+  const tag = foldedPlayerKey(value)
+  const queryTag = foldedPlayerKey(query)
   if (tag && (tag === needle || (queryTag && tag === queryTag))) return true
   const tokens = nameTokens(value)
   return tokens.has(needle) || Boolean(queryTag && tokens.has(queryTag))
