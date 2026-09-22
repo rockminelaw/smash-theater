@@ -64,7 +64,7 @@ export function SuggestPage() {
   }
 
   return (
-    <main className="page add-page">
+    <main className="page add-page suggest-page">
       <h1>Suggest a VOD</h1>
       <p className="lede">
         Send a Smash Ultimate set for review. It will not appear in the archive until it is
