@@ -703,10 +703,10 @@ function CharacterFocus({
       )}
 
       {detail.players.length > 0 && (
-        <FocusHeat
+        <FocusLeaderboard
           title={`Who plays ${name}`}
-          subtitle={`Top ${Math.min(HEAT_TAKE, detail.players.length).toLocaleString()} representatives`}
-          rows={detail.players.slice(0, HEAT_TAKE)}
+          subtitle={`Top ${Math.min(18, detail.players.length).toLocaleString()} by archived VODs`}
+          rows={detail.players.slice(0, 18)}
           label={(row) => row.a ?? row.key}
           onPick={(row) => onPlayer(row.a ?? row.key)}
         />
@@ -735,14 +735,13 @@ function CharacterFocus({
       )}
 
       {faced.length > 0 && (
-        <FocusHeat
+        <FocusLeaderboard
           title={`Who ${name} faces`}
           subtitle="Most common opposing characters"
-          rows={faced.slice(0, HEAT_TAKE)}
-          wide
-          stock
+          rows={faced.slice(0, 18)}
           label={(row) => characterName(row.key)}
           onPick={(row) => onCharacter(row.key)}
+          stock
         />
       )}
 
@@ -785,13 +784,12 @@ function CharacterFocus({
   )
 }
 
-function FocusHeat({
+function FocusLeaderboard({
   title,
   subtitle,
   rows,
   label,
   onPick,
-  wide,
   stock,
 }: {
   title: string
@@ -799,40 +797,62 @@ function FocusHeat({
   rows: RankedRow[]
   label: (row: RankedRow) => string
   onPick: (row: RankedRow) => void
-  wide?: boolean
   stock?: boolean
 }) {
   const max = rows[0]?.count ?? 1
-  if (rows.length === 0) return null
+  const total = rows.reduce((sum, row) => sum + row.count, 0)
+  if (rows.length === 0 || total <= 0) return null
+  const podium = rows.slice(0, 3)
 
   return (
-    <div className="stats-viz">
+    <div className="stats-viz focus-leaderboard">
       <div className="stats-viz-head">
         <h3>{title}</h3>
         <span>{subtitle}</span>
       </div>
-      <span className="heat-scale focus-heat-scale" aria-hidden="true">
-        <em>Fewer</em>
-        <i />
-        <em>More</em>
-      </span>
-      <div className={`heat-map${wide ? ' is-wide' : ''}`} role="list">
-        {rows.map((row) => (
-          <button
-            key={row.key}
-            type="button"
-            role="listitem"
-            className="heat-cell"
-            style={{ background: heatBackground(row.count, max) }}
-            title={`${label(row)} · ${row.count.toLocaleString()} VODs`}
-            onClick={() => onPick(row)}
-          >
-            {stock && <StockArt id={row.key} />}
-            <span className="heat-name">{label(row)}</span>
-            <strong>{row.count.toLocaleString()}</strong>
-          </button>
+
+      {podium.length > 1 && (
+        <div className="focus-podium" aria-label="Top three">
+          {podium.map((row, index) => (
+            <button
+              key={row.key}
+              type="button"
+              className={`focus-podium-card is-rank-${index + 1}`}
+              onClick={() => onPick(row)}
+            >
+              <span className="focus-podium-rank">#{index + 1}</span>
+              {stock && <StockArt id={row.key} />}
+              <strong>{label(row)}</strong>
+              <em>
+                {row.count.toLocaleString()} · {Math.round((row.count / total) * 100)}%
+              </em>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ul className="focus-bar-chart">
+        {rows.map((row, index) => (
+          <li key={row.key}>
+            <button type="button" onClick={() => onPick(row)}>
+              <span className="focus-bar-rank">{index + 1}</span>
+              {stock && (
+                <span className="focus-bar-stock">
+                  <StockArt id={row.key} />
+                </span>
+              )}
+              <span className="focus-bar-label">{label(row)}</span>
+              <span className="focus-bar-track">
+                <span className="focus-bar-fill" style={{ width: `${(row.count / max) * 100}%` }} />
+              </span>
+              <span className="focus-bar-count">
+                {row.count.toLocaleString()}
+                <small>{Math.round((row.count / total) * 100)}%</small>
+              </span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   )
 }

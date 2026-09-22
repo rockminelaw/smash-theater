@@ -1020,8 +1020,186 @@ a {
   margin-top: 0.2rem;
 }
 
-.focus-heat-scale {
-  margin: 0 0 0.55rem;
+.focus-leaderboard {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.focus-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.focus-podium-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.28rem;
+  padding: 0.85rem 0.55rem 0.75rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-raise-2);
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.focus-podium-card:hover,
+.focus-podium-card:focus-visible {
+  outline: 2px solid #f3f3f5;
+  outline-offset: 1px;
+}
+
+.focus-podium-card.is-rank-1 {
+  background: color-mix(in srgb, var(--purple) 34%, var(--bg-raise-2));
+}
+
+.focus-podium-card.is-rank-2 {
+  background: color-mix(in srgb, var(--purple) 22%, var(--bg-raise-2));
+}
+
+.focus-podium-card.is-rank-3 {
+  background: color-mix(in srgb, var(--purple) 14%, var(--bg-raise-2));
+}
+
+.focus-podium-rank {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.focus-podium-card strong {
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.focus-podium-card em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.focus-podium-card .heat-stock {
+  width: 34px;
+  height: 34px;
+}
+
+.focus-bar-chart {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.focus-bar-chart button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.75rem auto minmax(5.5rem, 9rem) minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.focus-bar-chart button:not(:has(.focus-bar-stock)) {
+  grid-template-columns: 1.75rem minmax(5.5rem, 10rem) minmax(0, 1fr) auto;
+}
+
+.focus-bar-chart button:hover,
+.focus-bar-chart button:focus-visible {
+  background: var(--bg-raise-2);
+}
+
+.focus-bar-rank {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.focus-bar-stock .heat-stock {
+  width: 24px;
+  height: 24px;
+}
+
+.focus-bar-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.focus-bar-track {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-raise-2);
+}
+
+.focus-bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--purple-dark), var(--purple));
+}
+
+.focus-bar-count {
+  display: grid;
+  justify-items: end;
+  gap: 0.05rem;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.focus-bar-count small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 860px) {
+  .focus-podium {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-bar-chart button,
+  .focus-bar-chart button:not(:has(.focus-bar-stock)) {
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      'rank label count'
+      'track track track';
+    gap: 0.3rem 0.45rem;
+  }
+
+  .focus-bar-rank {
+    grid-area: rank;
+  }
+
+  .focus-bar-stock {
+    display: none;
+  }
+
+  .focus-bar-label {
+    grid-area: label;
+  }
+
+  .focus-bar-track {
+    grid-area: track;
+  }
+
+  .focus-bar-count {
+    grid-area: count;
+  }
 }
 
 .stats-focus-head p {
