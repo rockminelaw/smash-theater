@@ -3,6 +3,7 @@ import { CHARACTERS, isOfficialCharacterId } from '../data/characters'
 import { STAGES } from '../data/stages'
 import type { Game, Match } from '../types'
 import { CharacterPicker } from './CharacterPicker'
+import { ULTIMATE_RELEASE_DATE } from '../importer/official'
 import { parseStartggUrl } from '../lib/startggUrl'
 
 const emptyGame = (): Game => ({
@@ -59,6 +60,10 @@ export function AddMatchForm({ players, onSave }: Props) {
       setError('Add at least one game with both characters.')
       return
     }
+    if (date < ULTIMATE_RELEASE_DATE) {
+      setError('Smash Ultimate launched on December 7, 2018.')
+      return
+    }
 
     onSave({
       id: crypto.randomUUID(),
@@ -80,7 +85,13 @@ export function AddMatchForm({ players, onSave }: Props) {
       <div className="form-grid">
         <label className="field">
           <span>Date</span>
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+          <input
+            type="date"
+            value={date}
+            min={ULTIMATE_RELEASE_DATE}
+            onChange={(event) => setDate(event.target.value)}
+            required
+          />
         </label>
         <label className="field">
           <span>Tournament</span>

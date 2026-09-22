@@ -75,7 +75,34 @@ function bump(map: Map<string, number>, key: string, n = 1) {
 
 function isNamedTournament(name: string) {
   const cleaned = name.trim()
-  return Boolean(cleaned) && !/^(youtube vod|set|vod)$/i.test(cleaned)
+  if (cleaned.length < 4) return false
+  return !/^(youtube vod|unknown event|set|community tip|ssbu|super smash bros\.? ultimate|smash ultimate(?: tournament(?: set)?)?)$/i.test(
+    cleaned,
+  )
+}
+
+function stripExhibitionJunk(name: string) {
+  return name
+    .replace(/キャラ窓(?:対抗戦|交流戦|精鋭戦|エキシビジョン(?:マッチ)?)?/g, ' ')
+    .replace(/エキシビジョン(?:マッチ)?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sameRivalryPerson(left: string, right: string) {
+  const a = left.trim()
+  const b = right.trim()
+  if (!a || !b) return true
+  const aKey = playerKey(a)
+  const bKey = playerKey(b)
+  if (aKey && bKey && aKey === bKey) return true
+  const aLower = a.toLowerCase()
+  const bLower = b.toLowerCase()
+  if (aLower === bLower) return true
+  if (aLower.endsWith(` ${bLower}`) || bLower.endsWith(` ${aLower}`)) return true
+  const aCore = stripExhibitionJunk(a).toLowerCase()
+  const bCore = stripExhibitionJunk(b).toLowerCase()
+  return Boolean(aCore && bCore && aCore === bCore)
 }
 
 function rememberName(names: Map<string, Map<string, number>>, raw: string) {
@@ -212,7 +239,9 @@ export function computeArchiveStats(matches: Match[]): ArchiveStats {
     const year = match.date.slice(0, 4)
     if (/^\d{4}$/.test(year)) bump(years, year)
 
-    if (p1Key && p2Key && p1Key !== p2Key) bump(rivalries, pairKey(p1Key, p2Key))
+    if (p1Key && p2Key && p1Key !== p2Key && !sameRivalryPerson(match.player1, match.player2)) {
+      bump(rivalries, pairKey(p1Key, p2Key))
+    }
 
     const seenChars = new Set<string>()
     const seenPairs = new Set<string>()
@@ -293,7 +322,7 @@ export function computeArchiveStats(matches: Match[]): ArchiveStats {
         const b = nameFor(bKey)
         return { ...row, a, b }
       })
-      .filter((row) => row.a && row.b && row.a !== row.b && playerKey(row.a) !== playerKey(row.b)),
+      .filter((row) => row.a && row.b && !sameRivalryPerson(row.a, row.b)),
     scoredPlayers,
   }
 }

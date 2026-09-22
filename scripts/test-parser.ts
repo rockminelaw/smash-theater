@@ -1,9 +1,10 @@
 import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
-import { EMPTY_FILTERS, filterMatches, filtersToHash } from '../src/lib/filters.ts'
-import { detectGameMode } from '../src/lib/gameMode.ts'
 import { namesMatch, parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
+import { EMPTY_FILTERS, filterMatches, filtersToHash, sortVisibleMatches } from '../src/lib/filters.ts'
+import { detectGameMode } from '../src/lib/gameMode.ts'
+import { sanitizeMatch, ULTIMATE_RELEASE_DATE } from '../src/importer/official.ts'
 import {
   computeArchiveStats,
   filtersForFocus,
@@ -615,18 +616,47 @@ const hurtQuery = filterMatches([hurt, hurtik], { ...EMPTY_FILTERS, player1: 'Hu
 const hurtikOnly = hurtikQuery.length === 1 && hurtikQuery[0]?.player1 === '$hurtik'
 const hurtNotHurtik = namesMatch('Hurt', '$hurtik') === false
 const hurtikKeepsDollar = namesMatch('$hurtik', '$hurtik') && namesMatch('$hurtik', 'hurtik')
-const sponsorStillMatches = namesMatch('TSM | MkLeo', 'MkLeo') && namesMatch('MkLeo', 'leo')
+const sponsorStillMatches = namesMatch('TSM | MkLeo', 'MkLeo') && namesMatch('MkLeo', 'MkLeo')
+const kenNotKendrick = namesMatch('Kendrick', 'Ken') === false && namesMatch('KEN', 'Ken')
 const hurtStillFound = hurtQuery.some((match) => match.player1 === 'Hurt')
+const kenVods = [
+  sampleMatch({ id: 'yt-ken-zed', date: '2024-01-01', player1: 'KEN', player2: 'Zed' }),
+  sampleMatch({ id: 'yt-kendrick', date: '2025-06-01', player1: 'Kendrick', player2: 'Amy' }),
+  sampleMatch({ id: 'yt-ken-amy', date: '2023-01-01', player1: 'KEN', player2: 'Amy' }),
+]
+const kenOnly = filterMatches(kenVods, { ...EMPTY_FILTERS, player1: 'Ken' })
+const kenOnlyOk = kenOnly.length === 2 && kenOnly.every((match) => match.player1 === 'KEN')
+const dateSorted = sortVisibleMatches(kenOnly, EMPTY_FILTERS)
+const dateSortOk = dateSorted[0]?.id === 'yt-ken-zed' && dateSorted[1]?.id === 'yt-ken-amy'
+const nameSorted = sortVisibleMatches(kenOnly, { ...EMPTY_FILTERS, player1: 'Ken' })
+const nameSortOk = nameSorted[0]?.player2 === 'Amy' && nameSorted[1]?.player2 === 'Zed'
+const clearedSortOk = sortVisibleMatches(kenOnly, { ...EMPTY_FILTERS, player1: '' })[0]?.id === 'yt-ken-zed'
+const keepsReleaseDay = Boolean(sanitizeMatch(sampleMatch({ date: ULTIMATE_RELEASE_DATE })))
+const dropsPreRelease = sanitizeMatch(sampleMatch({ date: '2018-12-06' })) === null
 if (!hurtikOnly) failed += 1
 if (!hurtNotHurtik) failed += 1
 if (!hurtikKeepsDollar) failed += 1
 if (!sponsorStillMatches) failed += 1
+if (!kenNotKendrick) failed += 1
 if (!hurtStillFound) failed += 1
+if (!kenOnlyOk) failed += 1
+if (!dateSortOk) failed += 1
+if (!nameSortOk) failed += 1
+if (!clearedSortOk) failed += 1
+if (!keepsReleaseDay) failed += 1
+if (!dropsPreRelease) failed += 1
 console.log(hurtikOnly ? 'OK  ' : 'FAIL', 'searching $hurtik does not return Hurt', hurtikQuery.map((match) => match.player1))
 console.log(hurtNotHurtik ? 'OK  ' : 'FAIL', 'Hurt is not a match for $hurtik')
 console.log(hurtikKeepsDollar ? 'OK  ' : 'FAIL', '$hurtik still matches $hurtik and hurtik')
-console.log(sponsorStillMatches ? 'OK  ' : 'FAIL', 'sponsor tags and short queries still match MkLeo')
+console.log(sponsorStillMatches ? 'OK  ' : 'FAIL', 'sponsor tags still match MkLeo')
+console.log(kenNotKendrick ? 'OK  ' : 'FAIL', 'Ken does not match Kendrick')
 console.log(hurtStillFound ? 'OK  ' : 'FAIL', 'searching Hurt still returns Hurt')
+console.log(kenOnlyOk ? 'OK  ' : 'FAIL', 'Ken search returns KEN VODs only', kenOnly.map((match) => match.player1))
+console.log(dateSortOk ? 'OK  ' : 'FAIL', 'clearing player search sorts by date')
+console.log(nameSortOk ? 'OK  ' : 'FAIL', 'player search sorts alphabetically by opponent')
+console.log(clearedSortOk ? 'OK  ' : 'FAIL', 'empty player search returns to date order')
+console.log(keepsReleaseDay ? 'OK  ' : 'FAIL', 'keep VODs from Ultimate launch day')
+console.log(dropsPreRelease ? 'OK  ' : 'FAIL', 'drop VODs from before December 7, 2018')
 
 console.log('\n--- game modes ---')
 const modeCases: Array<[string, ReturnType<typeof detectGameMode>, Partial<Match>]> = [
@@ -716,6 +746,34 @@ console.log(charOnce ? 'OK  ' : 'FAIL', 'character counted once per VOD', jokerR
 console.log(playerMerged ? 'OK  ' : 'FAIL', 'sponsor tags merge into one player', mkLeo)
 console.log(focusHits && !focusMiss ? 'OK  ' : 'FAIL', 'matchup focus keeps only that pair')
 console.log(hashOk ? 'OK  ' : 'FAIL', 'opening a matchup writes archive character filters', archiveLink)
+
+const genericStats = computeArchiveStats([
+  sampleMatch({ tournament: 'YouTube VOD' }),
+  sampleMatch({ id: 'yt-generic', tournament: 'Smash Ultimate Tournament' }),
+  sampleMatch({ id: 'yt-generic-set', tournament: 'Smash Ultimate Tournament Set' }),
+  sampleMatch({ id: 'yt-genesis', tournament: 'Genesis 9' }),
+])
+const genericGone =
+  genericStats.tournamentsRanked.every((row) => row.key === 'Genesis 9') &&
+  genericStats.tournamentsRanked.length === 1
+if (!genericGone) failed += 1
+console.log(genericGone ? 'OK  ' : 'FAIL', 'generic tournament titles stay out of stats', genericStats.tournamentsRanked)
+
+const rivalryStats = computeArchiveStats([
+  sampleMatch({ player1: 'キャラ窓対抗戦 窓', player2: '窓' }),
+  sampleMatch({ id: 'yt-mado-2', player1: 'キャラ窓交流戦 窓', player2: '窓' }),
+  sampleMatch({ id: 'yt-mado-3', player1: 'キャラ窓対抗戦 窓', player2: '窓' }),
+  sampleMatch({ id: 'yt-mado-4', player1: 'キャラ窓対抗戦 窓', player2: '窓 エキシビジョンマッチ' }),
+  sampleMatch({ id: 'yt-real', player1: 'KEN', player2: 'MkLeo' }),
+])
+const madoGone = rivalryStats.rivalries.every((row) => !`${row.a} vs ${row.b}`.includes('窓'))
+const realRivalry = rivalryStats.rivalries.some(
+  (row) => (row.a === 'KEN' && row.b === 'MkLeo') || (row.a === 'MkLeo' && row.b === 'KEN'),
+)
+if (!madoGone) failed += 1
+if (!realRivalry) failed += 1
+console.log(madoGone ? 'OK  ' : 'FAIL', 'same-tag exhibition rivalries are omitted', rivalryStats.rivalries)
+console.log(realRivalry ? 'OK  ' : 'FAIL', 'real player rivalries stay in the list')
 
 const bothChars = [
   sampleMatch({ id: 'yt-pair', games: [{ p1Character: 'fox', p2Character: 'sheik' }] }),

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { FilterBar } from '../components/FilterBar'
 import { MatchList } from '../components/MatchList'
-import { EMPTY_FILTERS, filterMatches, uniquePlayers, uniqueTags } from '../lib/filters'
+import { EMPTY_FILTERS, filterMatches, sortVisibleMatches, uniquePlayers, uniqueTags } from '../lib/filters'
 import { detectGameMode } from '../lib/gameMode'
 import type { GameMode, Match, MatchFilters } from '../types'
 
@@ -13,7 +13,10 @@ type Props = {
 }
 
 export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
-  const visible = useMemo(() => filterMatches(matches, filters), [matches, filters])
+  const visible = useMemo(
+    () => sortVisibleMatches(filterMatches(matches, filters), filters),
+    [matches, filters],
+  )
   const inMode = useMemo(
     () => filterMatches(matches, { ...EMPTY_FILTERS, mode: filters.mode || 'singles' }),
     [matches, filters.mode],

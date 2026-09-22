@@ -1,3 +1,4 @@
+import { ULTIMATE_RELEASE_DATE } from '../importer/official'
 import { STAGES } from '../data/stages'
 import { EMPTY_FILTERS, hasActiveFilters } from '../lib/filters'
 import type { GameMode, MatchFilters } from '../types'
@@ -17,6 +18,7 @@ type Props = {
 
 export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts, onChange }: Props) {
   const update = (patch: Partial<MatchFilters>) => onChange({ ...filters, ...patch })
+  const minDate = dateMin && dateMin > ULTIMATE_RELEASE_DATE ? dateMin : ULTIMATE_RELEASE_DATE
 
   const swap = () => {
     onChange({
@@ -89,7 +91,7 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           <input
             type="date"
             value={filters.from ?? ''}
-            min={dateMin}
+            min={minDate}
             max={filters.to || dateMax}
             onChange={(event) => update({ from: event.target.value })}
           />
@@ -99,7 +101,7 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           <input
             type="date"
             value={filters.to ?? ''}
-            min={filters.from || dateMin}
+            min={filters.from || minDate}
             max={dateMax}
             onChange={(event) => update({ to: event.target.value })}
           />

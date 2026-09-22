@@ -1,5 +1,5 @@
 import { SEED_MATCHES } from '../data/matches'
-import { sanitizeMatch, sanitizeMatches } from '../importer/official'
+import { sanitizeMatch, sanitizeMatches, ULTIMATE_RELEASE_DATE } from '../importer/official'
 import type { Match } from '../types'
 
 const STORAGE_KEY = 'smash-theater-matches-v1'
@@ -33,13 +33,17 @@ function sortMatches(matches: Match[]) {
   return [...matches].sort((a, b) => b.date.localeCompare(a.date) || a.player1.localeCompare(b.player1))
 }
 
+function inUltimateEra(match: Match) {
+  return match.date >= ULTIMATE_RELEASE_DATE
+}
+
 export function loadMatches() {
-  const catalog = fileCatalog.length ? fileCatalog : SEED_MATCHES
+  const catalog = (fileCatalog.length ? fileCatalog : SEED_MATCHES).filter(inUltimateEra)
   const stored = readCustom()
   if (!stored.length) return catalog
 
   const catalogIds = new Set(catalog.map((match) => match.id))
-  const custom = stored.filter((match) => !catalogIds.has(match.id))
+  const custom = stored.filter((match) => !catalogIds.has(match.id) && inUltimateEra(match))
   if (custom.length < stored.length) {
     try {
       writeCustom(custom)

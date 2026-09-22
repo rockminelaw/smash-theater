@@ -9,4 +9,4 @@ const cleaned = sanitizeMatches(Array.isArray(matches) ? matches : [])
 
 await writeFile(ARCHIVE, `${JSON.stringify(cleaned)}\n`, 'utf8')
 
-console.log(`Scrubbed archive: ${matches.length} -> ${cleaned.length} Ultimate sets with official characters.`)
+console.log(`Scrubbed archive: ${matches.length} -> ${cleaned.length} Ultimate-era sets with official characters.`)

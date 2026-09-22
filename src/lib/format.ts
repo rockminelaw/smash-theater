@@ -84,13 +84,38 @@ export function setScore(
   return { p1, p2, label: `${p1}-${p2}` }
 }
 
+function foldToken(value: string) {
+  return value.toLowerCase().replace(/^\$+/u, '')
+}
+
+function nameTokens(value: string) {
+  const tokens = new Set<string>()
+  const add = (token: string) => {
+    const folded = foldToken(token)
+    if (folded) tokens.add(folded)
+  }
+  add(value)
+  const parts = value.split(/[^\p{L}\p{N}$_+.-]+/u).filter(Boolean)
+  for (const part of parts) {
+    add(part)
+    add(playerKey(part))
+  }
+  add(playerKey(value))
+  return tokens
+}
+
 export function namesMatch(value: string, query: string) {
+  const needle = foldToken(query.trim())
+  if (!needle) return false
+  const tag = foldToken(playerKey(value))
+  const queryTag = foldToken(playerKey(query))
+  if (tag && (tag === needle || (queryTag && tag === queryTag))) return true
+  const tokens = nameTokens(value)
+  return tokens.has(needle) || Boolean(queryTag && tokens.has(queryTag))
+}
+
+export function textMatch(value: string, query: string) {
   const needle = query.trim().toLowerCase()
   if (!needle) return false
-  const haystack = value.toLowerCase()
-  if (haystack === needle || haystack.includes(needle)) return true
-  const tag = playerKey(value)
-  const queryTag = playerKey(query)
-  if (!tag || !queryTag) return false
-  return tag === queryTag || tag.includes(queryTag)
+  return value.toLowerCase().includes(needle)
 }

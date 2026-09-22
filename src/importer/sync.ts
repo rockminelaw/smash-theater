@@ -1,6 +1,6 @@
 import type { Match } from '../types'
 import { VOD_CHANNELS, type VodChannel } from './channels'
-import { sanitizeMatch } from './official'
+import { sanitizeMatch, ULTIMATE_RELEASE_DATE } from './official'
 import { parsedToGames, parseVodTitle } from './parseTitle'
 import { applySetDetails, parseSetDetails } from './setDetails'
 import {
@@ -100,10 +100,11 @@ export async function syncYoutubeVods(options: SyncOptions) {
         channelScanned += result.videos.length
         scanned += result.videos.length
 
+        const era = result.videos.filter((video) => video.publishedAt.slice(0, 10) >= ULTIMATE_RELEASE_DATE)
         const window = since
-          ? result.videos.filter((video) => publishedAtLeast(video.publishedAt, since))
-          : result.videos
-        const hitOlderUploads = Boolean(since) && window.length < result.videos.length
+          ? era.filter((video) => publishedAtLeast(video.publishedAt, since))
+          : era
+        const hitOlderUploads = era.length < result.videos.length || (Boolean(since) && window.length < era.length)
 
         if (
           catchUp &&
