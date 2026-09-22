@@ -9,6 +9,12 @@ const ROUND_NOISE_JA = /グランドファイナル|決勝トーナメント|決
 const TRAILING_ROUND = /\s+(?:winners|losers|lowers|finals?|semifinals?|semis?|side|grand)\s*$/i
 const LEADING_ROUND = /^(?:finals?|winners|losers|lowers|grand)\s+/i
 
+/** Full tags that contain a character name but are real player names. */
+const PRESERVED_PLAYER_NAMES = ['Kendrick Olimar']
+
+/** Short forms that should display as a preserved full tag. */
+const PLAYER_NAME_ALIASES = new Map([['kendrick', 'Kendrick Olimar']])
+
 const TEAM_PREFIXES = [
   'echo fox mvg',
   'zeta division',
@@ -81,6 +87,9 @@ function aliasPattern(alias: string) {
 }
 
 function stripCharacterNames(raw: string) {
+  const preserved = PRESERVED_PLAYER_NAMES.find((name) => name.toLowerCase() === raw.trim().toLowerCase())
+  if (preserved) return preserved
+
   let remaining = ` ${raw} `
   for (const [alias] of ALIAS_BY_LENGTH) {
     if (/^[\x00-\x7F]+$/.test(alias) && alias.length < 3) continue
@@ -262,7 +271,7 @@ export function normalizePlayerName(raw: string) {
   if (!/\p{L}|\p{N}/u.test(name)) return ''
   if (/^(winners|losers|lowers|grand|finals?|pools?|top\s*\d+|決勝)$/i.test(name)) return ''
   if (name.length > 32) return ''
-  return name
+  return PLAYER_NAME_ALIASES.get(name.toLowerCase()) ?? name
 }
 
 const PLAYER_KEY_CACHE = new Map<string, string>()

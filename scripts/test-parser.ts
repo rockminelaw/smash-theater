@@ -99,6 +99,9 @@ const names: Array<[string, string]> = [
   ['Chez Momocon', 'Chez'],
   ['Zebra Momocon', 'Zebra'],
   ['2019 Ally', 'Ally'],
+  ['Kendrick Olimar', 'Kendrick Olimar'],
+  ['Kendrick (Olimar)', 'Kendrick Olimar'],
+  ['Kendrick', 'Kendrick Olimar'],
   ['!!!', ''],
   ['# 1894QF Samsora', 'Samsora'],
   ['& Gackt', 'Gackt'],
@@ -617,11 +620,15 @@ const hurtikOnly = hurtikQuery.length === 1 && hurtikQuery[0]?.player1 === '$hur
 const hurtNotHurtik = namesMatch('Hurt', '$hurtik') === false
 const hurtikKeepsDollar = namesMatch('$hurtik', '$hurtik') && namesMatch('$hurtik', 'hurtik')
 const sponsorStillMatches = namesMatch('TSM | MkLeo', 'MkLeo') && namesMatch('MkLeo', 'MkLeo')
-const kenNotKendrick = namesMatch('Kendrick', 'Ken') === false && namesMatch('KEN', 'Ken')
+const kenNotKendrick =
+  namesMatch('Kendrick Olimar', 'Ken') === false &&
+  namesMatch('Kendrick', 'Ken') === false &&
+  namesMatch('KEN', 'Ken')
+const kendrickStillFound = namesMatch('Kendrick Olimar', 'Kendrick') && namesMatch('Kendrick', 'Kendrick Olimar')
 const hurtStillFound = hurtQuery.some((match) => match.player1 === 'Hurt')
 const kenVods = [
   sampleMatch({ id: 'yt-ken-zed', date: '2024-01-01', player1: 'KEN', player2: 'Zed' }),
-  sampleMatch({ id: 'yt-kendrick', date: '2025-06-01', player1: 'Kendrick', player2: 'Amy' }),
+  sampleMatch({ id: 'yt-kendrick', date: '2025-06-01', player1: 'Kendrick Olimar', player2: 'Amy' }),
   sampleMatch({ id: 'yt-ken-amy', date: '2023-01-01', player1: 'KEN', player2: 'Amy' }),
 ]
 const kenOnly = filterMatches(kenVods, { ...EMPTY_FILTERS, player1: 'Ken' })
@@ -629,8 +636,8 @@ const kenOnlyOk = kenOnly.length === 2 && kenOnly.every((match) => match.player1
 const dateSorted = sortVisibleMatches(kenOnly)
 const dateSortOk = dateSorted[0]?.id === 'yt-ken-zed' && dateSorted[1]?.id === 'yt-ken-amy'
 const searchKeepsDate = sortVisibleMatches(kenOnly)[0]?.id === 'yt-ken-zed'
-const suggestionOrder = rankNameSuggestions(['Kendrick', 'KEN', 'Kenneth', 'Broken', 'aken'], 'Ken')
-const suggestionOk = suggestionOrder[0] === 'KEN' && suggestionOrder.indexOf('KEN') < suggestionOrder.indexOf('Kendrick')
+const suggestionOrder = rankNameSuggestions(['Kendrick Olimar', 'KEN', 'Kenneth', 'Broken', 'aken'], 'Ken')
+const suggestionOk = suggestionOrder[0] === 'KEN' && suggestionOrder.indexOf('KEN') < suggestionOrder.indexOf('Kendrick Olimar')
 const keepsReleaseDay = Boolean(sanitizeMatch(sampleMatch({ date: ULTIMATE_RELEASE_DATE })))
 const dropsPreRelease = sanitizeMatch(sampleMatch({ date: '2018-12-06' })) === null
 if (!hurtikOnly) failed += 1
@@ -638,6 +645,7 @@ if (!hurtNotHurtik) failed += 1
 if (!hurtikKeepsDollar) failed += 1
 if (!sponsorStillMatches) failed += 1
 if (!kenNotKendrick) failed += 1
+if (!kendrickStillFound) failed += 1
 if (!hurtStillFound) failed += 1
 if (!kenOnlyOk) failed += 1
 if (!dateSortOk) failed += 1
@@ -650,6 +658,7 @@ console.log(hurtNotHurtik ? 'OK  ' : 'FAIL', 'Hurt is not a match for $hurtik')
 console.log(hurtikKeepsDollar ? 'OK  ' : 'FAIL', '$hurtik still matches $hurtik and hurtik')
 console.log(sponsorStillMatches ? 'OK  ' : 'FAIL', 'sponsor tags still match MkLeo')
 console.log(kenNotKendrick ? 'OK  ' : 'FAIL', 'Ken does not match Kendrick')
+console.log(kendrickStillFound ? 'OK  ' : 'FAIL', 'Kendrick still matches Kendrick Olimar')
 console.log(hurtStillFound ? 'OK  ' : 'FAIL', 'searching Hurt still returns Hurt')
 console.log(kenOnlyOk ? 'OK  ' : 'FAIL', 'Ken search returns KEN VODs only', kenOnly.map((match) => match.player1))
 console.log(dateSortOk ? 'OK  ' : 'FAIL', 'VOD list sorts by date')
