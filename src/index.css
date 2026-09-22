@@ -627,10 +627,6 @@ a {
   text-transform: uppercase;
   vertical-align: middle;
 }
-  gap: 0.22rem;
-  flex: none;
-  justify-content: inherit;
-}
 
 .vs-mini {
   width: 28px;
