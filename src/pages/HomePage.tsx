@@ -13,10 +13,7 @@ type Props = {
 }
 
 export function HomePage({ matches, filters, onFilters, onDelete }: Props) {
-  const visible = useMemo(
-    () => sortVisibleMatches(filterMatches(matches, filters), filters),
-    [matches, filters],
-  )
+  const visible = useMemo(() => sortVisibleMatches(filterMatches(matches, filters)), [matches, filters])
   const inMode = useMemo(
     () => filterMatches(matches, { ...EMPTY_FILTERS, mode: filters.mode || 'singles' }),
     [matches, filters.mode],

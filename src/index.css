@@ -1073,6 +1073,11 @@ a {
   gap: 0.25rem;
 }
 
+.matchup-chips.is-ditto {
+  width: 100%;
+  justify-content: center;
+}
+
 .stats-viz {
   margin: 0 0 1.1rem;
 }
@@ -1258,6 +1263,7 @@ a {
 .bar-lead {
   display: flex;
   align-items: center;
+  justify-content: center;
   min-width: 0;
   min-height: 22px;
 }

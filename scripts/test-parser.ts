@@ -2,7 +2,7 @@ import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
 import { namesMatch, parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
-import { EMPTY_FILTERS, filterMatches, filtersToHash, sortVisibleMatches } from '../src/lib/filters.ts'
+import { EMPTY_FILTERS, filterMatches, filtersToHash, rankNameSuggestions, sortVisibleMatches } from '../src/lib/filters.ts'
 import { detectGameMode } from '../src/lib/gameMode.ts'
 import { sanitizeMatch, ULTIMATE_RELEASE_DATE } from '../src/importer/official.ts'
 import {
@@ -626,11 +626,11 @@ const kenVods = [
 ]
 const kenOnly = filterMatches(kenVods, { ...EMPTY_FILTERS, player1: 'Ken' })
 const kenOnlyOk = kenOnly.length === 2 && kenOnly.every((match) => match.player1 === 'KEN')
-const dateSorted = sortVisibleMatches(kenOnly, EMPTY_FILTERS)
+const dateSorted = sortVisibleMatches(kenOnly)
 const dateSortOk = dateSorted[0]?.id === 'yt-ken-zed' && dateSorted[1]?.id === 'yt-ken-amy'
-const nameSorted = sortVisibleMatches(kenOnly, { ...EMPTY_FILTERS, player1: 'Ken' })
-const nameSortOk = nameSorted[0]?.player2 === 'Amy' && nameSorted[1]?.player2 === 'Zed'
-const clearedSortOk = sortVisibleMatches(kenOnly, { ...EMPTY_FILTERS, player1: '' })[0]?.id === 'yt-ken-zed'
+const searchKeepsDate = sortVisibleMatches(kenOnly)[0]?.id === 'yt-ken-zed'
+const suggestionOrder = rankNameSuggestions(['Kendrick', 'KEN', 'Kenneth', 'Broken', 'aken'], 'Ken')
+const suggestionOk = suggestionOrder[0] === 'KEN' && suggestionOrder.indexOf('KEN') < suggestionOrder.indexOf('Kendrick')
 const keepsReleaseDay = Boolean(sanitizeMatch(sampleMatch({ date: ULTIMATE_RELEASE_DATE })))
 const dropsPreRelease = sanitizeMatch(sampleMatch({ date: '2018-12-06' })) === null
 if (!hurtikOnly) failed += 1
@@ -641,8 +641,8 @@ if (!kenNotKendrick) failed += 1
 if (!hurtStillFound) failed += 1
 if (!kenOnlyOk) failed += 1
 if (!dateSortOk) failed += 1
-if (!nameSortOk) failed += 1
-if (!clearedSortOk) failed += 1
+if (!searchKeepsDate) failed += 1
+if (!suggestionOk) failed += 1
 if (!keepsReleaseDay) failed += 1
 if (!dropsPreRelease) failed += 1
 console.log(hurtikOnly ? 'OK  ' : 'FAIL', 'searching $hurtik does not return Hurt', hurtikQuery.map((match) => match.player1))
@@ -652,9 +652,9 @@ console.log(sponsorStillMatches ? 'OK  ' : 'FAIL', 'sponsor tags still match MkL
 console.log(kenNotKendrick ? 'OK  ' : 'FAIL', 'Ken does not match Kendrick')
 console.log(hurtStillFound ? 'OK  ' : 'FAIL', 'searching Hurt still returns Hurt')
 console.log(kenOnlyOk ? 'OK  ' : 'FAIL', 'Ken search returns KEN VODs only', kenOnly.map((match) => match.player1))
-console.log(dateSortOk ? 'OK  ' : 'FAIL', 'clearing player search sorts by date')
-console.log(nameSortOk ? 'OK  ' : 'FAIL', 'player search sorts alphabetically by opponent')
-console.log(clearedSortOk ? 'OK  ' : 'FAIL', 'empty player search returns to date order')
+console.log(dateSortOk ? 'OK  ' : 'FAIL', 'VOD list sorts by date')
+console.log(searchKeepsDate ? 'OK  ' : 'FAIL', 'player search keeps date order')
+console.log(suggestionOk ? 'OK  ' : 'FAIL', 'player suggestions put exact Ken first', suggestionOrder)
 console.log(keepsReleaseDay ? 'OK  ' : 'FAIL', 'keep VODs from Ultimate launch day')
 console.log(dropsPreRelease ? 'OK  ' : 'FAIL', 'drop VODs from before December 7, 2018')
 

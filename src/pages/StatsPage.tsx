@@ -38,7 +38,7 @@ function stageName(id: string) {
 function matchupLabel(row: RankedRow) {
   const left = characterName(row.a ?? '')
   const right = characterName(row.b ?? '')
-  return row.a && row.a === row.b ? `${left} ditto` : `${left} vs ${right}`
+  return `${left} vs ${right}`
 }
 
 function focusTitle(focus: StatsFocus) {
@@ -514,7 +514,7 @@ function VirtualRankList({
               <span className="bar-lead">
                 {tab === 'characters' && <CharacterChip character={getCharacter(row.key)} size="sm" />}
                 {tab === 'matchups' && (
-                  <span className="matchup-chips">
+                  <span className={`matchup-chips${row.a === row.b ? ' is-ditto' : ''}`}>
                     <CharacterChip character={getCharacter(row.a ?? '')} size="sm" iconOnly />
                     {row.a !== row.b && <CharacterChip character={getCharacter(row.b ?? '')} size="sm" iconOnly />}
                   </span>
@@ -604,7 +604,7 @@ function HeatMap({
           >
             {tab === 'characters' && <StockArt id={row.key} />}
             {tab === 'matchups' && (
-              <span className="heat-stocks" aria-hidden="true">
+              <span className={`heat-stocks${row.a === row.b ? ' is-ditto' : ''}`} aria-hidden="true">
                 <StockArt id={row.a ?? ''} />
                 {row.a !== row.b && <StockArt id={row.b ?? ''} />}
               </span>

@@ -137,26 +137,23 @@ export function uniqueTags(matches: Match[]) {
   )
 }
 
-function searchSortKey(match: Match, player1: string, player2: string) {
-  if (player1 && player2) return `${match.player1} vs ${match.player2}`
-  const query = player1 || player2
-  const hitFirst = namesMatch(match.player1, query)
-  const searched = hitFirst ? match.player1 : match.player2
-  const other = hitFirst ? match.player2 : match.player1
-  return `${searched} vs ${other}`
+export function rankNameSuggestions(options: string[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return options
+  return options
+    .filter((option) => option.toLowerCase().includes(q))
+    .map((option) => {
+      const lower = option.toLowerCase()
+      let rank = 3
+      if (lower === q) rank = 0
+      else if (namesMatch(option, query)) rank = 1
+      else if (lower.startsWith(q)) rank = 2
+      return { option, rank, len: option.length }
+    })
+    .sort((left, right) => left.rank - right.rank || left.len - right.len || left.option.localeCompare(right.option))
+    .map((row) => row.option)
 }
 
-export function sortVisibleMatches(matches: Match[], filters: MatchFilters) {
-  const player1 = filters.player1.trim()
-  const player2 = filters.player2.trim()
-  if (!player1 && !player2) {
-    return [...matches].sort((left, right) => right.date.localeCompare(left.date) || left.player1.localeCompare(right.player1))
-  }
-  return [...matches].sort((left, right) => {
-    const byName = searchSortKey(left, player1, player2).localeCompare(searchSortKey(right, player1, player2), undefined, {
-      sensitivity: 'base',
-      numeric: true,
-    })
-    return byName || right.date.localeCompare(left.date)
-  })
+export function sortVisibleMatches(matches: Match[]) {
+  return [...matches].sort((left, right) => right.date.localeCompare(left.date) || left.player1.localeCompare(right.player1))
 }

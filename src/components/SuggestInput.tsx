@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { rankNameSuggestions } from '../lib/filters'
 
 type Props = {
   label: string
@@ -18,11 +19,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const fieldRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
-  const suggestions = useMemo(() => {
-    const q = value.trim().toLowerCase()
-    if (!q) return options
-    return options.filter((option) => option.toLowerCase().includes(q))
-  }, [options, value])
+  const suggestions = useMemo(() => rankNameSuggestions(options, value), [options, value])
 
   useEffect(() => {
     setScrollTop(0)
