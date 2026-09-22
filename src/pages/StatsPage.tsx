@@ -496,7 +496,10 @@ function VirtualRankList({
       role="region"
       aria-label="Full ranking"
     >
-      <ul className="stats-rank-list" style={{ height: rows.length * ROW_HEIGHT }}>
+      <ul
+        className={`stats-rank-list${tab === 'matchups' ? ' is-matchups' : ''}`}
+        style={{ height: rows.length * ROW_HEIGHT }}
+      >
         {rows.slice(start, end).map((row, index) => (
           <li
             key={row.key}
@@ -512,8 +515,8 @@ function VirtualRankList({
                 {tab === 'characters' && <CharacterChip character={getCharacter(row.key)} size="sm" />}
                 {tab === 'matchups' && (
                   <span className="matchup-chips">
-                    <CharacterChip character={getCharacter(row.a ?? '')} size="sm" />
-                    {row.a !== row.b && <CharacterChip character={getCharacter(row.b ?? '')} size="sm" />}
+                    <CharacterChip character={getCharacter(row.a ?? '')} size="sm" iconOnly />
+                    {row.a !== row.b && <CharacterChip character={getCharacter(row.b ?? '')} size="sm" iconOnly />}
                   </span>
                 )}
               </span>
@@ -594,14 +597,14 @@ function HeatMap({
             key={row.key}
             type="button"
             role="listitem"
-            className="heat-cell"
+            className={`heat-cell${tab === 'matchups' ? ' is-matchup' : ''}`}
             style={{ background: heatBackground(row.count, max) }}
             title={`${rowLabel(tab, row)} · ${row.count.toLocaleString()} VODs`}
             onClick={() => onPick(row)}
           >
             {tab === 'characters' && <StockArt id={row.key} />}
             {tab === 'matchups' && (
-              <span className="heat-stocks">
+              <span className="heat-stocks" aria-hidden="true">
                 <StockArt id={row.a ?? ''} />
                 {row.a !== row.b && <StockArt id={row.b ?? ''} />}
               </span>

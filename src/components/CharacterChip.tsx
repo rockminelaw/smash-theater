@@ -4,6 +4,7 @@ type Props = {
   character?: Character
   size?: 'sm' | 'md'
   winner?: boolean
+  iconOnly?: boolean
 }
 
 function chipTextColor(background: string) {
@@ -17,14 +18,14 @@ function chipTextColor(background: string) {
   return luminance > 155 ? '#111' : '#fff'
 }
 
-export function CharacterChip({ character, size = 'md', winner }: Props) {
+export function CharacterChip({ character, size = 'md', winner, iconOnly }: Props) {
   if (!character) {
-    return <span className={`chip chip-${size} chip-unknown`}>?</span>
+    return <span className={`chip chip-${size} chip-unknown${iconOnly ? ' chip-icon-only' : ''}`}>?</span>
   }
 
   return (
     <span
-      className={`chip chip-${size}${winner ? ' chip-winner' : ''}`}
+      className={`chip chip-${size}${winner ? ' chip-winner' : ''}${iconOnly ? ' chip-icon-only' : ''}`}
       title={character.name}
       style={{ background: character.color, color: chipTextColor(character.color) }}
     >
@@ -39,7 +40,7 @@ export function CharacterChip({ character, size = 'md', winner }: Props) {
           event.currentTarget.style.display = 'none'
         }}
       />
-      <span className="chip-label">{character.short}</span>
+      {!iconOnly && <span className="chip-label">{character.short}</span>}
     </span>
   )
 }
