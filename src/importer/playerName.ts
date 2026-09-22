@@ -86,6 +86,18 @@ const TEAM_PREFIXES = [
   'mp',
 ].sort((a, b) => b.length - a.length)
 
+/** Maesuma / JP weekly brands that leak into the player field from titles. */
+const EVENT_NAME_PREFIXES = [
+  'grand wars',
+  'landmark',
+  '1on1',
+  'wars',
+  'hit',
+  'top',
+  'u22',
+  'ltop',
+].sort((a, b) => b.length - a.length)
+
 function aliasPattern(alias: string) {
   const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   if (/^[\x00-\x7F]+$/.test(alias)) {
@@ -135,6 +147,48 @@ function stripTeamPrefixes(raw: string) {
     }
   }
   return current
+}
+
+/** Strip tournament brands like `HIT らき` / `1on1 [F] れの` down to the player tag. */
+function stripEventNamePrefixes(raw: string) {
+  let current = raw.trim()
+  let changed = true
+  while (changed && current) {
+    changed = false
+    const next = current
+      .replace(/^(?:1on1\s+)?\[[^\]]{0,16}\]\s+/i, '')
+      .replace(/^[A-Z0-9]{1,4}\[[^\]]{0,16}\]\s+/i, '')
+      .trim()
+    if (next !== current) {
+      current = next
+      changed = true
+      continue
+    }
+    const lower = current.toLowerCase()
+    for (const prefix of EVENT_NAME_PREFIXES) {
+      if (lower === prefix) return current
+      if (lower.startsWith(`${prefix} `) || lower.startsWith(`${prefix}/`) || lower.startsWith(`${prefix}／`)) {
+        current = current.slice(prefix.length).replace(/^[\s/／]+/, '')
+        changed = true
+        break
+      }
+    }
+  }
+  return current
+}
+
+/**
+ * Japanese VODs often write `TG（トリグリ）` / `TG トリグリ` — Latin tag + Japanese reading.
+ * Keep the Latin tag; drop the reading (and unclosed fullwidth parens).
+ */
+function stripJapaneseReading(raw: string) {
+  let name = raw.trim()
+  // Closed or unclosed reading in parentheses: TG（トリグリ） / TG（トリグリ
+  name = name.replace(/[（(][\u3040-\u30ff\u3400-\u9fffー][^)）]*[)）]?\s*$/u, '').trim()
+  // Space-separated katakana reading after a short Latin tag: TG トリグリ
+  const dual = name.match(/^([A-Za-z][A-Za-z0-9._!]{0,15})\s+([\u30a0-\u30ffー]{2,20})$/u)
+  if (dual?.[1]) return dual[1]
+  return name
 }
 
 function stripModeNameNoise(raw: string) {
@@ -274,13 +328,17 @@ export function normalizePlayerName(raw: string) {
 
   name = takeLastDashTag(name)
   name = takeSponsorTag(name)
+  name = stripEventNamePrefixes(name)
   name = stripTeamPrefixes(name)
+  name = stripJapaneseReading(name)
   name = stripModeNameNoise(name)
   const withoutChars = stripCharacterNames(name)
   name = withoutChars || name
   name = stripModeNameNoise(name)
   name = stripOuterJunk(name.replace(/^[\s\-–—|/／]+/, '').replace(/[\s\-–—|/／]+$/, ''))
   name = stripEventBleed(name)
+  name = stripEventNamePrefixes(name)
+  name = stripJapaneseReading(name)
   name = stripOuterJunk(name)
 
   if (hadRound && name.split(/\s+/).length >= 3) {
