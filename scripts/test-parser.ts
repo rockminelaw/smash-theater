@@ -917,6 +917,27 @@ const genesisTrailingOk =
 if (!genesisTrailingOk) failed += 1
 console.log(genesisTrailingOk ? 'OK  ' : 'FAIL', 'trailing Genesis 9 becomes the tournament', genesisTrailing)
 
+const banjoVariants = [
+  'Banjo & Kazooie',
+  'Banjo and Kazooie',
+  'Banjo Kazooie',
+  'Banjo + Kazooie',
+  'Banjo/Kazooie',
+  'banjo-kazooie',
+  'Kazooie',
+]
+let banjoFailed = 0
+for (const label of banjoVariants) {
+  const parsed = parseVodTitle(`DAT MM 1 - Player (Fox) Vs. Duo (${label}) Smash Ultimate - SSBU`)
+  const ok = parsed?.p2Characters.length === 1 && parsed.p2Characters[0] === 'banjo'
+  if (!ok) {
+    banjoFailed += 1
+    failed += 1
+    console.log('FAIL', 'Banjo alias', label, parsed?.p2Characters)
+  }
+}
+if (!banjoFailed) console.log('OK  ', 'Banjo & Kazooie name variants all map to banjo')
+
 if (failed) {
   console.error(`\n${failed} tests failed`)
   process.exit(1)
