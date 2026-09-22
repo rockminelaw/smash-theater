@@ -14,6 +14,7 @@ import {
   parseStatsHash,
   statsToHash,
   tabForFocus,
+  type FocusDetail,
   type RankedRow,
   type StatsFocus,
   type StatsTab,
@@ -95,6 +96,12 @@ export function StatsPage({ matches }: Props) {
   const [tab, setTab] = useState<StatsTab>(initial.tab)
   const [focus, setFocus] = useState<StatsFocus | null>(initial.focus)
   const [query, setQuery] = useState('')
+  const focusRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (!focus) return
+    focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focus])
 
   useEffect(() => {
     const onHash = () => {
@@ -217,12 +224,15 @@ export function StatsPage({ matches }: Props) {
       )}
 
       {focus && detail && (
-        <section className="stats-focus">
+        <section className="stats-focus" ref={focusRef}>
           <div className="stats-focus-head">
             <button type="button" className="text-btn" onClick={() => setFocus(null)}>
               Back to lists
             </button>
-            <h2>{focusTitle(focus)}</h2>
+            <h2 className={focus.type === 'character' ? 'stats-focus-title' : undefined}>
+              {focus.type === 'character' && <StockArt id={focus.id} />}
+              {focusTitle(focus)}
+            </h2>
             <p>
               {detail.vods.toLocaleString()} {detail.vods === 1 ? 'VOD' : 'VODs'}
               {' · '}
@@ -235,74 +245,89 @@ export function StatsPage({ matches }: Props) {
             </button>
           </div>
 
-          {detail.years.length > 1 && (
-            <div className="focus-years">
-              {detail.years.map((row) => (
-                <button key={row.key} type="button" onClick={() => openFocus({ type: 'year', year: row.key })}>
-                  {row.key} <strong>{row.count.toLocaleString()}</strong>
-                </button>
-              ))}
-            </div>
-          )}
+          {focus.type === 'character' ? (
+            <CharacterFocus
+              characterId={focus.id}
+              detail={detail}
+              archiveVods={stats.vods}
+              onPlayer={(name) => openFocus({ type: 'player', name })}
+              onMatchup={(a, b) => openFocus({ type: 'matchup', a, b })}
+              onTournament={(name) => openFocus({ type: 'tournament', name })}
+              onYear={(year) => openFocus({ type: 'year', year })}
+              onCharacter={(id) => openFocus({ type: 'character', id })}
+            />
+          ) : (
+            <>
+              {detail.years.length > 1 && (
+                <div className="focus-years">
+                  {detail.years.map((row) => (
+                    <button key={row.key} type="button" onClick={() => openFocus({ type: 'year', year: row.key })}>
+                      {row.key} <strong>{row.count.toLocaleString()}</strong>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          <div className="stats-split">
-            {focus.type !== 'player' && detail.players.length > 0 && (
-              <FocusList
-                title={focus.type === 'rivalry' ? 'Players' : 'Top players'}
-                rows={detail.players.slice(0, 8)}
-                label={(row) => row.a ?? row.key}
-                onPick={(row) => openFocus({ type: 'player', name: row.a ?? row.key })}
-              />
-            )}
-            {focus.type === 'player' && detail.players.length > 0 && (
-              <FocusList
-                title="Most common opponents"
-                rows={detail.players.slice(0, 8)}
-                label={(row) => row.a ?? row.key}
-                onPick={(row) => openFocus({ type: 'rivalry', a: focus.name, b: row.a ?? row.key })}
-              />
-            )}
-            {focus.type !== 'character' && focus.type !== 'matchup' && detail.characters.length > 0 && (
-              <FocusList
-                title={focus.type === 'player' ? 'Characters used' : 'Characters'}
-                rows={detail.characters.slice(0, 8)}
-                label={(row) => characterName(row.key)}
-                onPick={(row) => openFocus({ type: 'character', id: row.key })}
-              />
-            )}
-            {focus.type !== 'matchup' && detail.matchups.length > 0 && (
-              <FocusList
-                title="Matchups"
-                rows={detail.matchups.slice(0, 8)}
-                label={matchupLabel}
-                onPick={(row) => openFocus({ type: 'matchup', a: row.a ?? '', b: row.b ?? '' })}
-              />
-            )}
-            {focus.type !== 'tournament' && detail.tournaments.length > 0 && (
-              <FocusList
-                title="Tournaments"
-                rows={detail.tournaments.slice(0, 8)}
-                label={(row) => row.key}
-                onPick={(row) => openFocus({ type: 'tournament', name: row.key })}
-              />
-            )}
-          </div>
+              <div className="stats-split">
+                {focus.type !== 'player' && detail.players.length > 0 && (
+                  <FocusList
+                    title={focus.type === 'rivalry' ? 'Players' : 'Top players'}
+                    rows={detail.players.slice(0, 8)}
+                    label={(row) => row.a ?? row.key}
+                    onPick={(row) => openFocus({ type: 'player', name: row.a ?? row.key })}
+                  />
+                )}
+                {focus.type === 'player' && detail.players.length > 0 && (
+                  <FocusList
+                    title="Most common opponents"
+                    rows={detail.players.slice(0, 8)}
+                    label={(row) => row.a ?? row.key}
+                    onPick={(row) => openFocus({ type: 'rivalry', a: focus.name, b: row.a ?? row.key })}
+                  />
+                )}
+                {focus.type !== 'matchup' && detail.characters.length > 0 && (
+                  <FocusList
+                    title={focus.type === 'player' ? 'Characters used' : 'Characters'}
+                    rows={detail.characters.slice(0, 8)}
+                    label={(row) => characterName(row.key)}
+                    onPick={(row) => openFocus({ type: 'character', id: row.key })}
+                  />
+                )}
+                {focus.type !== 'matchup' && detail.matchups.length > 0 && (
+                  <FocusList
+                    title="Matchups"
+                    rows={detail.matchups.slice(0, 8)}
+                    label={matchupLabel}
+                    onPick={(row) => openFocus({ type: 'matchup', a: row.a ?? '', b: row.b ?? '' })}
+                  />
+                )}
+                {focus.type !== 'tournament' && detail.tournaments.length > 0 && (
+                  <FocusList
+                    title="Tournaments"
+                    rows={detail.tournaments.slice(0, 8)}
+                    label={(row) => row.key}
+                    onPick={(row) => openFocus({ type: 'tournament', name: row.key })}
+                  />
+                )}
+              </div>
 
-          {detail.samples.length > 0 && (
-            <div className="stats-samples">
-              <h3>Recent VODs</h3>
-              <ul>
-                {detail.samples.map((match) => (
-                  <li key={match.id}>
-                    <span>{formatDate(match.date)}</span>
-                    <a href={match.vodUrl} target="_blank" rel="noreferrer">
-                      {match.player1} vs {match.player2}
-                    </a>
-                    <em>{match.tournament}</em>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              {detail.samples.length > 0 && (
+                <div className="stats-samples">
+                  <h3>Recent VODs</h3>
+                  <ul>
+                    {detail.samples.map((match) => (
+                      <li key={match.id}>
+                        <span>{formatDate(match.date)}</span>
+                        <a href={match.vodUrl} target="_blank" rel="noreferrer">
+                          {match.player1} vs {match.player2}
+                        </a>
+                        <em>{match.tournament}</em>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}
@@ -610,6 +635,200 @@ function HeatMap({
               </span>
             )}
             <span className="heat-name">{rowLabel(tab, row)}</span>
+            <strong>{row.count.toLocaleString()}</strong>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CharacterFocus({
+  characterId,
+  detail,
+  archiveVods,
+  onPlayer,
+  onMatchup,
+  onTournament,
+  onYear,
+  onCharacter,
+}: {
+  characterId: string
+  detail: FocusDetail
+  archiveVods: number
+  onPlayer: (name: string) => void
+  onMatchup: (a: string, b: string) => void
+  onTournament: (name: string) => void
+  onYear: (year: string) => void
+  onCharacter: (id: string) => void
+}) {
+  const name = characterName(characterId)
+  const topPlayer = detail.players[0]
+  const topMatchup = detail.matchups[0]
+  const peakYear = [...detail.years].sort((left, right) => right.count - left.count)[0]
+  const share = archiveVods > 0 ? Math.round((detail.vods / archiveVods) * 1000) / 10 : 0
+  const dittoRate = detail.vods > 0 ? Math.round((detail.dittos / detail.vods) * 100) : 0
+  const faced = detail.characters.filter((row) => row.key !== characterId)
+
+  return (
+    <div className="character-focus">
+      <div className="character-focus-cards">
+        <article>
+          <strong>{detail.players.length.toLocaleString()}</strong>
+          <span>Players on {name}</span>
+        </article>
+        <article>
+          <strong>{share}%</strong>
+          <span>Of archive VODs</span>
+        </article>
+        <article>
+          <strong>{dittoRate}%</strong>
+          <span>Ditto sets</span>
+        </article>
+        <article>
+          <strong>{peakYear?.key ?? '—'}</strong>
+          <span>Busiest year{peakYear ? ` · ${peakYear.count.toLocaleString()}` : ''}</span>
+        </article>
+      </div>
+
+      {(topPlayer || topMatchup) && (
+        <p className="stats-note character-focus-lead">
+          {topPlayer
+            ? `${topPlayer.a ?? topPlayer.key} has the most archived ${name} VODs (${topPlayer.count.toLocaleString()}).`
+            : ''}
+          {topMatchup
+            ? ` Most common pairing: ${matchupLabel(topMatchup)} (${topMatchup.count.toLocaleString()}).`
+            : ''}
+        </p>
+      )}
+
+      {detail.players.length > 0 && (
+        <FocusHeat
+          title={`Who plays ${name}`}
+          subtitle={`Top ${Math.min(HEAT_TAKE, detail.players.length).toLocaleString()} representatives`}
+          rows={detail.players.slice(0, HEAT_TAKE)}
+          label={(row) => row.a ?? row.key}
+          onPick={(row) => onPlayer(row.a ?? row.key)}
+        />
+      )}
+
+      {detail.years.length > 1 && (
+        <div className="character-year-bars">
+          <div className="stats-viz-head">
+            <h3>{name} VODs by year</h3>
+          </div>
+          <div className="year-bars">
+            {detail.years.map((row) => {
+              const max = peakYear?.count ?? 1
+              return (
+                <button key={row.key} type="button" onClick={() => onYear(row.key)}>
+                  <span className="year-bar-track">
+                    <span className="year-bar" style={{ height: `${Math.max(2, (row.count / max) * 100)}%` }} />
+                  </span>
+                  <span className="year-label">{row.key}</span>
+                  <strong>{row.count.toLocaleString()}</strong>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {faced.length > 0 && (
+        <FocusHeat
+          title={`Who ${name} faces`}
+          subtitle="Most common opposing characters"
+          rows={faced.slice(0, HEAT_TAKE)}
+          wide
+          stock
+          label={(row) => characterName(row.key)}
+          onPick={(row) => onCharacter(row.key)}
+        />
+      )}
+
+      <div className="stats-split">
+        {detail.matchups.length > 0 && (
+          <FocusList
+            title="Matchups"
+            rows={detail.matchups.slice(0, 10)}
+            label={matchupLabel}
+            onPick={(row) => onMatchup(row.a ?? '', row.b ?? '')}
+          />
+        )}
+        {detail.tournaments.length > 0 && (
+          <FocusList
+            title="Tournaments"
+            rows={detail.tournaments.slice(0, 10)}
+            label={(row) => row.key}
+            onPick={(row) => onTournament(row.key)}
+          />
+        )}
+      </div>
+
+      {detail.samples.length > 0 && (
+        <div className="stats-samples">
+          <h3>Recent {name} VODs</h3>
+          <ul>
+            {detail.samples.map((match) => (
+              <li key={match.id}>
+                <span>{formatDate(match.date)}</span>
+                <a href={match.vodUrl} target="_blank" rel="noreferrer">
+                  {match.player1} vs {match.player2}
+                </a>
+                <em>{match.tournament}</em>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FocusHeat({
+  title,
+  subtitle,
+  rows,
+  label,
+  onPick,
+  wide,
+  stock,
+}: {
+  title: string
+  subtitle: string
+  rows: RankedRow[]
+  label: (row: RankedRow) => string
+  onPick: (row: RankedRow) => void
+  wide?: boolean
+  stock?: boolean
+}) {
+  const max = rows[0]?.count ?? 1
+  if (rows.length === 0) return null
+
+  return (
+    <div className="stats-viz">
+      <div className="stats-viz-head">
+        <h3>{title}</h3>
+        <span>{subtitle}</span>
+      </div>
+      <span className="heat-scale focus-heat-scale" aria-hidden="true">
+        <em>Fewer</em>
+        <i />
+        <em>More</em>
+      </span>
+      <div className={`heat-map${wide ? ' is-wide' : ''}`} role="list">
+        {rows.map((row) => (
+          <button
+            key={row.key}
+            type="button"
+            role="listitem"
+            className="heat-cell"
+            style={{ background: heatBackground(row.count, max) }}
+            title={`${label(row)} · ${row.count.toLocaleString()} VODs`}
+            onClick={() => onPick(row)}
+          >
+            {stock && <StockArt id={row.key} />}
+            <span className="heat-name">{label(row)}</span>
             <strong>{row.count.toLocaleString()}</strong>
           </button>
         ))}

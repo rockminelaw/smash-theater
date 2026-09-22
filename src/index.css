@@ -972,6 +972,58 @@ a {
   color: var(--text);
 }
 
+.stats-focus-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.stats-focus-title .heat-stock {
+  width: 36px;
+  height: 36px;
+}
+
+.character-focus {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.character-focus-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+}
+
+.character-focus-cards article {
+  background: var(--bg-raise-2);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.character-focus-cards strong {
+  font-size: 1.25rem;
+}
+
+.character-focus-cards span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.character-focus-lead {
+  margin: 0;
+  text-align: left;
+}
+
+.character-year-bars {
+  margin-top: 0.2rem;
+}
+
+.focus-heat-scale {
+  margin: 0 0 0.55rem;
+}
+
 .stats-focus-head p {
   margin: 0;
   color: var(--muted);

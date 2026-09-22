@@ -367,6 +367,11 @@ export function computeFocusDetail(matches: Match[], focus: StatsFocus): FocusDe
       const opponent = side === 1 ? match.player2 : side === 2 ? match.player1 : ''
       const opponentKey = opponent ? rememberName(playerNames, opponent) : ''
       if (opponentKey) bump(players, opponentKey)
+    } else if (focus.type === 'character') {
+      const p1Used = match.games.some((game) => game.p1Character === focus.id)
+      const p2Used = match.games.some((game) => game.p2Character === focus.id)
+      if (p1Used && p1Key) bump(players, p1Key)
+      if (p2Used && p2Key) bump(players, p2Key)
     } else {
       if (p1Key) bump(players, p1Key)
       if (p2Key) bump(players, p2Key)
@@ -376,6 +381,16 @@ export function computeFocusDetail(matches: Match[], focus: StatsFocus): FocusDe
     const seenPairs = new Set<string>()
     let ditto = false
     for (const game of match.games) {
+      if (focus.type === 'character') {
+        if (game.p1Character === focus.id) seenChars.add(game.p2Character)
+        if (game.p2Character === focus.id) seenChars.add(game.p1Character)
+        if (game.p1Character === focus.id || game.p2Character === focus.id) {
+          seenPairs.add(pairKey(game.p1Character, game.p2Character))
+        }
+        if (game.p1Character === focus.id && game.p2Character === focus.id) ditto = true
+        continue
+      }
+
       if (focus.type === 'player') {
         const side = playerSide(match, focus.name)
         if (side === 1) seenChars.add(game.p1Character)
