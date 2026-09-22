@@ -1084,96 +1084,89 @@ a {
   font-size: 0.82rem;
 }
 
-.share-strip {
-  display: flex;
-  height: 18px;
-  overflow: hidden;
-  border-radius: 99px;
-  background: var(--bg-raise-2);
+.heat-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 0.4rem;
 }
 
-.share-strip button,
-.share-rest {
-  min-width: 2px;
-  height: 100%;
-  padding: 0;
+.heat-map.is-wide {
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+}
+
+.heat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  min-height: 118px;
+  padding: 0.7rem 0.45rem 0.55rem;
   border: 0;
+  border-radius: 12px;
+  color: #f7f2fb;
   cursor: pointer;
+  text-align: center;
 }
 
-.share-rest,
-.share-rest-swatch {
-  background: #4a4a54;
+.heat-cell:hover,
+.heat-cell:focus-visible {
+  outline: 2px solid #f3f3f5;
+  outline-offset: 1px;
 }
 
-.share-legend {
+.heat-stock {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45));
+}
+
+.heat-stocks {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.85rem;
-  list-style: none;
-  margin: 0.55rem 0 0.85rem;
-  padding: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
 }
 
-.share-legend button,
-.share-legend span {
+.heat-stocks .heat-stock {
+  width: 32px;
+  height: 32px;
+}
+
+.heat-name {
+  max-width: 100%;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.heat-cell strong {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.82);
+}
+
+.heat-scale {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  cursor: pointer;
+  gap: 0.4rem;
 }
 
-.share-legend span {
-  cursor: default;
+.heat-scale em {
+  font-style: normal;
+  font-size: 0.75rem;
 }
 
-.share-legend i {
-  width: 8px;
+.heat-scale i {
+  width: 72px;
   height: 8px;
   border-radius: 99px;
-  flex: none;
-}
-
-.share-legend strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.stats-top-chart {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.stats-top-row {
-  cursor: pointer;
-}
-
-.stats-top-row:hover .stats-top-bar {
-  fill: var(--purple-dark);
-}
-
-.stats-top-chart text {
-  fill: var(--muted);
-  font-size: 11px;
-}
-
-.stats-top-count {
-  fill: var(--text);
-}
-
-.stats-top-track {
-  fill: var(--bg-raise-2);
-}
-
-.stats-top-bar {
-  fill: var(--purple);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--purple) 20%, #141318), var(--purple));
 }
 
 .stats-scroll {

@@ -25,8 +25,7 @@ type Props = {
 }
 
 const ROW_HEIGHT = 46
-const SHARE_TAKE = 7
-const SHARE_COLORS = ['#d4a3e6', '#b56dcf', '#9a4fb8', '#7d3d96', '#c58fdc', '#8a48a6', '#6b3480']
+const HEAT_TAKE = 32
 
 function characterName(id: string) {
   return getCharacter(id)?.name ?? id
@@ -392,7 +391,7 @@ export function StatsPage({ matches }: Props) {
           <p className="empty-inline">No results in this slice of the archive.</p>
         ) : (
           <>
-            <ShareChart rows={ranked} tab={tab} onPick={(row) => pickRow(tab, row, openFocus)} />
+            <HeatMap rows={ranked} tab={tab} onPick={(row) => pickRow(tab, row, openFocus)} />
             <div className="stats-list-head">
               <h3>All {tabNoun(tab, ranked.length)}</h3>
               <span>Scroll the list to see every row</span>
@@ -534,7 +533,34 @@ function VirtualRankList({
   )
 }
 
-function ShareChart({
+function heatBackground(count: number, max: number) {
+  const t = max <= 0 ? 0 : Math.sqrt(count / max)
+  const mix = Math.round(20 + t * 80)
+  return `color-mix(in srgb, var(--purple) ${mix}%, #141318)`
+}
+
+function heatLimit(tab: StatsTab, count: number) {
+  if (tab === 'characters' || tab === 'stages') return count
+  return Math.min(count, HEAT_TAKE)
+}
+
+function StockArt({ id }: { id: string }) {
+  return (
+    <img
+      className="heat-stock"
+      src={`/stock/${id}.png`}
+      alt=""
+      width={40}
+      height={40}
+      loading="lazy"
+      onError={(event) => {
+        event.currentTarget.style.display = 'none'
+      }}
+    />
+  )
+}
+
+function HeatMap({
   rows,
   tab,
   onPick,
@@ -543,73 +569,50 @@ function ShareChart({
   tab: StatsTab
   onPick: (row: RankedRow) => void
 }) {
-  const top = rows.slice(0, SHARE_TAKE)
-  const rest = rows.slice(SHARE_TAKE).reduce((sum, row) => sum + row.count, 0)
-  const topTotal = top.reduce((sum, row) => sum + row.count, 0)
-  const total = topTotal + rest
-  if (total <= 0 || top.length === 0) return null
-  const max = top[0]?.count ?? 1
-  const restShare = Math.round((rest / total) * 100)
+  const cells = rows.slice(0, heatLimit(tab, rows.length))
+  const max = cells[0]?.count ?? 1
+  if (cells.length === 0) return null
+  const wide = tab === 'matchups' || tab === 'rivalries'
 
   return (
     <div className="stats-viz">
       <div className="stats-viz-head">
-        <h3>Top {top.length} in this ranking</h3>
-        <span>{restShare > 0 ? `${restShare}% sits outside this group` : 'Share of the full list'}</span>
+        <h3>
+          {tab === 'characters' || tab === 'stages'
+            ? `Heat map · ${cells.length.toLocaleString()}`
+            : `Heat map · top ${cells.length.toLocaleString()}`}
+        </h3>
+        <span className="heat-scale" aria-hidden="true">
+          <em>Fewer</em>
+          <i />
+          <em>More</em>
+        </span>
       </div>
-      <div className="share-strip" role="img" aria-label={`Top ${top.length} ${tab}`}>
-        {top.map((row, index) => (
+      <div className={`heat-map${wide ? ' is-wide' : ''}`} role="list">
+        {cells.map((row) => (
           <button
             key={row.key}
             type="button"
-            title={`${rowLabel(tab, row)} · ${row.count.toLocaleString()} (${Math.round((row.count / topTotal) * 100)}% of the top ${top.length})`}
-            style={{
-              flexGrow: row.count,
-              flexShrink: 1,
-              flexBasis: 0,
-              background: SHARE_COLORS[index % SHARE_COLORS.length],
-            }}
+            role="listitem"
+            className="heat-cell"
+            style={{ background: heatBackground(row.count, max) }}
+            title={`${rowLabel(tab, row)} · ${row.count.toLocaleString()} VODs`}
             onClick={() => onPick(row)}
-          />
+          >
+            {tab === 'characters' && <StockArt id={row.key} />}
+            {tab === 'matchups' && (
+              <span className="heat-stocks">
+                <StockArt id={row.a ?? ''} />
+                {row.a !== row.b && <StockArt id={row.b ?? ''} />}
+              </span>
+            )}
+            <span className="heat-name">{rowLabel(tab, row)}</span>
+            <strong>{row.count.toLocaleString()}</strong>
+          </button>
         ))}
       </div>
-      <ul className="share-legend">
-        {top.map((row, index) => (
-          <li key={row.key}>
-            <button type="button" onClick={() => onPick(row)}>
-              <i style={{ background: SHARE_COLORS[index % SHARE_COLORS.length] }} />
-              <span>{rowLabel(tab, row)}</span>
-              <strong>{Math.round((row.count / topTotal) * 100)}%</strong>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <svg className="stats-top-chart" viewBox={`0 0 640 ${top.length * 28}`} role="img" aria-label={`Top ${top.length} ${tab}`}>
-        {top.map((row, index) => {
-          const y = index * 28
-          const width = Math.max(4, (row.count / max) * 430)
-          return (
-            <g key={row.key} className="stats-top-row" onClick={() => onPick(row)}>
-              <title>{`${rowLabel(tab, row)} · ${row.count.toLocaleString()}`}</title>
-              <rect x="0" y={y} width="640" height="28" fill="transparent" />
-              <text x={158} y={y + 18} textAnchor="end">
-                {truncateLabel(rowLabel(tab, row), 22)}
-              </text>
-              <rect className="stats-top-track" x={168} y={y + 8} width={430} height={10} rx={5} />
-              <rect className="stats-top-bar" x={168} y={y + 8} width={width} height={10} rx={5} />
-              <text className="stats-top-count" x={604} y={y + 18} textAnchor="end">
-                {row.count.toLocaleString()}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
     </div>
   )
-}
-
-function truncateLabel(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }
 
 function FocusList({
