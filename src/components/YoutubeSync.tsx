@@ -3,14 +3,20 @@ import { VOD_CHANNELS } from '../importer/channels'
 import { syncYoutubeVods } from '../importer/sync'
 import type { Match } from '../types'
 
-const KEY_STORAGE = 'smash-theater-youtube-key'
+const KEY_STORAGE = 'smash-vault-youtube-key'
+const LEGACY_KEY_STORAGE = ['smashbros-vault-youtube-key', 'smash-theater-youtube-key']
 
 type Props = {
   onImported: (matches: Match[]) => void
 }
 
 export function YoutubeSync({ onImported }: Props) {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(KEY_STORAGE) ?? '')
+  const [apiKey, setApiKey] = useState(
+    () =>
+      localStorage.getItem(KEY_STORAGE) ??
+      LEGACY_KEY_STORAGE.map((key) => localStorage.getItem(key)).find(Boolean) ??
+      '',
+  )
   const [pages, setPages] = useState(6)
   const [selected, setSelected] = useState(() => new Set(VOD_CHANNELS.map((channel) => channel.name)))
   const [status, setStatus] = useState('')
@@ -46,6 +52,7 @@ export function YoutubeSync({ onImported }: Props) {
       return
     }
     localStorage.setItem(KEY_STORAGE, apiKey.trim())
+    for (const key of LEGACY_KEY_STORAGE) localStorage.removeItem(key)
     setBusy(true)
     setStatus('Starting…')
     try {

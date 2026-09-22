@@ -2,7 +2,8 @@ import { SEED_MATCHES } from '../data/matches'
 import { sanitizeMatch, sanitizeMatches, ULTIMATE_RELEASE_DATE } from '../importer/official'
 import type { Match } from '../types'
 
-const STORAGE_KEY = 'smash-theater-matches-v1'
+const STORAGE_KEY = 'smash-vault-matches-v1'
+const LEGACY_STORAGE_KEYS = ['smashbros-vault-matches-v1', 'smash-theater-matches-v1']
 
 let fileCatalog: Match[] = []
 
@@ -12,7 +13,10 @@ export function setFileCatalog(matches: Match[]) {
 
 function readCustom(): Match[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) ??
+      null
     if (!raw) return []
     const parsed = JSON.parse(raw) as Match[]
     return Array.isArray(parsed) ? parsed : []
@@ -24,6 +28,7 @@ function readCustom(): Match[] {
 function writeCustom(matches: Match[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(matches))
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key)
   } catch {
     throw new Error('Browser storage is full. Use npm run scrape to save VODs into public/archive.json.')
   }
@@ -86,7 +91,7 @@ export function exportArchive(matches: Match[]) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'smash-theater-archive.json'
+  link.download = 'smash-vault-archive.json'
   link.click()
   URL.revokeObjectURL(url)
 }

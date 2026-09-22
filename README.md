@@ -1,4 +1,4 @@
-# Smash Theater
+# Smash Vault
 
 A Super Smash Bros. Ultimate VOD archive, modeled after [Replay Theater](https://replaytheater.app/).
 

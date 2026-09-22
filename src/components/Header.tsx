@@ -19,7 +19,7 @@ export function Header({ path }: Props) {
           />
           <circle cx="32" cy="32" r="4" fill="currentColor" />
         </svg>
-        Smash Theater
+        Smash Vault
       </a>
       <nav>
         <a href="#/" className={path === '/' ? 'is-active' : ''}>
