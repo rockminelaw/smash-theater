@@ -1,9 +1,15 @@
 import { applySetDetails, parseSetDetails } from '../src/importer/setDetails.ts'
 import { parseVodTitle } from '../src/importer/parseTitle.ts'
 import { normalizePlayerName } from '../src/importer/playerName.ts'
-import { EMPTY_FILTERS, filterMatches } from '../src/lib/filters.ts'
+import { EMPTY_FILTERS, filterMatches, filtersToHash } from '../src/lib/filters.ts'
 import { detectGameMode } from '../src/lib/gameMode.ts'
-import { parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
+import { namesMatch, parseVod, youtubeIdFromInput } from '../src/lib/format.ts'
+import {
+  computeArchiveStats,
+  filtersForFocus,
+  matchHasFocus,
+  pairKey,
+} from '../src/lib/stats.ts'
 import { parseStartggUrl } from '../src/lib/startggUrl.ts'
 import {
   applyStartggSet,
@@ -602,6 +608,26 @@ const rangeOk = inRange.length === 1 && before.length === 0 && after.length === 
 if (!rangeOk) failed += 1
 console.log(rangeOk ? 'OK  ' : 'FAIL', 'date range keeps the set on 2024-08-01')
 
+const hurt = sampleMatch({ player1: 'Hurt', player2: 'Sonix' })
+const hurtik = sampleMatch({ id: 'yt-hurtik', player1: '$hurtik', player2: 'Sonix' })
+const hurtikQuery = filterMatches([hurt, hurtik], { ...EMPTY_FILTERS, player1: '$hurtik' })
+const hurtQuery = filterMatches([hurt, hurtik], { ...EMPTY_FILTERS, player1: 'Hurt' })
+const hurtikOnly = hurtikQuery.length === 1 && hurtikQuery[0]?.player1 === '$hurtik'
+const hurtNotHurtik = namesMatch('Hurt', '$hurtik') === false
+const hurtikKeepsDollar = namesMatch('$hurtik', '$hurtik') && namesMatch('$hurtik', 'hurtik')
+const sponsorStillMatches = namesMatch('TSM | MkLeo', 'MkLeo') && namesMatch('MkLeo', 'leo')
+const hurtStillFound = hurtQuery.some((match) => match.player1 === 'Hurt')
+if (!hurtikOnly) failed += 1
+if (!hurtNotHurtik) failed += 1
+if (!hurtikKeepsDollar) failed += 1
+if (!sponsorStillMatches) failed += 1
+if (!hurtStillFound) failed += 1
+console.log(hurtikOnly ? 'OK  ' : 'FAIL', 'searching $hurtik does not return Hurt', hurtikQuery.map((match) => match.player1))
+console.log(hurtNotHurtik ? 'OK  ' : 'FAIL', 'Hurt is not a match for $hurtik')
+console.log(hurtikKeepsDollar ? 'OK  ' : 'FAIL', '$hurtik still matches $hurtik and hurtik')
+console.log(sponsorStillMatches ? 'OK  ' : 'FAIL', 'sponsor tags and short queries still match MkLeo')
+console.log(hurtStillFound ? 'OK  ' : 'FAIL', 'searching Hurt still returns Hurt')
+
 console.log('\n--- game modes ---')
 const modeCases: Array<[string, ReturnType<typeof detectGameMode>, Partial<Match>]> = [
   ['singles default', 'singles', {}],
@@ -636,6 +662,75 @@ if (!allOk) failed += 1
 console.log(singlesOk ? 'OK  ' : 'FAIL', 'default archive view is singles')
 console.log(doublesOk ? 'OK  ' : 'FAIL', 'doubles tab keeps doubles VODs')
 console.log(allOk ? 'OK  ' : 'FAIL', 'all tab keeps every mode')
+
+console.log('\n--- archive stats ---')
+const ganonSet = sampleMatch({
+  id: 'yt-ganon-bo5',
+  player1: 'MayBeFin',
+  player2: 'lolahmed',
+  games: [
+    { p1Character: 'ganondorf', p2Character: 'ganondorf' },
+    { p1Character: 'ganondorf', p2Character: 'ganondorf' },
+    { p1Character: 'ganondorf', p2Character: 'ganondorf' },
+  ],
+})
+const reverseMatchup = sampleMatch({
+  id: 'yt-fox-sheik',
+  player1: 'TSM | MkLeo',
+  player2: 'Spargo',
+  games: [{ p1Character: 'sheik', p2Character: 'fox' }],
+})
+const foxForward = sampleMatch({
+  id: 'yt-fox-sheik-2',
+  player1: 'MkLeo',
+  player2: 'Tweek',
+  games: [
+    { p1Character: 'fox', p2Character: 'sheik' },
+    { p1Character: 'fox', p2Character: 'sheik' },
+  ],
+})
+const archiveSlice = [ganonSet, reverseMatchup, foxForward, sampleMatch()]
+const computed = computeArchiveStats(archiveSlice)
+const ganonRow = computed.matchups.find((row) => row.key === pairKey('ganondorf', 'ganondorf'))
+const foxSheik = computed.matchups.find((row) => row.key === pairKey('fox', 'sheik'))
+const jokerRow = computed.characters.find((row) => row.key === 'joker')
+const mkLeo = computed.playersRanked.find((row) => row.key === 'mkleo' || row.a?.toLowerCase() === 'mkleo')
+const dittoOnce = ganonRow?.count === 1 && ganonRow.extra === 3
+const matchupMerged = foxSheik?.count === 2 && foxSheik.extra === 3
+const charOnce = jokerRow?.count === 1
+const playerMerged = (mkLeo?.count ?? 0) >= 3
+const focusHits = matchHasFocus(ganonSet, { type: 'matchup', a: 'ganondorf', b: 'ganondorf' })
+const focusMiss = matchHasFocus(foxForward, { type: 'matchup', a: 'ganondorf', b: 'ganondorf' })
+const archiveLink = filtersToHash(filtersForFocus({ type: 'matchup', a: 'fox', b: 'sheik' }, 'singles'))
+const hashOk = archiveLink.includes('c1=fox') && archiveLink.includes('c2=sheik')
+if (!dittoOnce) failed += 1
+if (!matchupMerged) failed += 1
+if (!charOnce) failed += 1
+if (!playerMerged) failed += 1
+if (!focusHits) failed += 1
+if (focusMiss) failed += 1
+if (!hashOk) failed += 1
+console.log(dittoOnce ? 'OK  ' : 'FAIL', 'Bo5 ditto counts as one set and three games', ganonRow)
+console.log(matchupMerged ? 'OK  ' : 'FAIL', 'reversed matchups share a key', foxSheik)
+console.log(charOnce ? 'OK  ' : 'FAIL', 'character counted once per VOD', jokerRow)
+console.log(playerMerged ? 'OK  ' : 'FAIL', 'sponsor tags merge into one player', mkLeo)
+console.log(focusHits && !focusMiss ? 'OK  ' : 'FAIL', 'matchup focus keeps only that pair')
+console.log(hashOk ? 'OK  ' : 'FAIL', 'opening a matchup writes archive character filters', archiveLink)
+
+const bothChars = [
+  sampleMatch({ id: 'yt-pair', games: [{ p1Character: 'fox', p2Character: 'sheik' }] }),
+  sampleMatch({
+    id: 'yt-split',
+    games: [
+      { p1Character: 'fox', p2Character: 'mario' },
+      { p1Character: 'joker', p2Character: 'sheik' },
+    ],
+  }),
+]
+const pairOnly = filterMatches(bothChars, { ...EMPTY_FILTERS, char1: 'fox', char2: 'sheik' })
+const pairOk = pairOnly.length === 1 && pairOnly[0]?.id === 'yt-pair'
+if (!pairOk) failed += 1
+console.log(pairOk ? 'OK  ' : 'FAIL', 'two character filters mean that matchup in the same game')
 
 const peeledSquad = parseVodTitle(
   '2GG Kongo Saga - Krustol (Fox) Vs. Kooz Squad Strike (Pikachu) Smash Ultimate - SSBU',

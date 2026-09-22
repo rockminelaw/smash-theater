@@ -5,7 +5,7 @@ import { AddPage } from './pages/AddPage'
 import { HomePage } from './pages/HomePage'
 import { StatsPage } from './pages/StatsPage'
 import { SuggestPage } from './pages/SuggestPage'
-import { EMPTY_FILTERS } from './lib/filters'
+import { EMPTY_FILTERS, filtersToHash } from './lib/filters'
 import { isGameMode } from './lib/gameMode'
 import type { Match, MatchFilters, RoutePath } from './types'
 
@@ -31,18 +31,7 @@ function parseHash() {
 }
 
 function writeFilters(filters: MatchFilters) {
-  const params = new URLSearchParams()
-  if (filters.player1) params.set('p1', filters.player1)
-  if (filters.player2) params.set('p2', filters.player2)
-  if (filters.char1) params.set('c1', filters.char1)
-  if (filters.char2) params.set('c2', filters.char2)
-  if (filters.stage) params.set('stage', filters.stage)
-  if (filters.tag) params.set('tag', filters.tag)
-  if (filters.from) params.set('from', filters.from)
-  if (filters.to) params.set('to', filters.to)
-  if (filters.mode && filters.mode !== 'singles') params.set('mode', filters.mode)
-  const query = params.toString()
-  const next = query ? `#/?${query}` : '#/'
+  const next = filtersToHash(filters)
   if (window.location.hash !== next) {
     history.replaceState(null, '', next)
   }

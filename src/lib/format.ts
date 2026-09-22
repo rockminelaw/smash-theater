@@ -88,8 +88,9 @@ export function namesMatch(value: string, query: string) {
   const needle = query.trim().toLowerCase()
   if (!needle) return false
   const haystack = value.toLowerCase()
-  if (haystack.includes(needle)) return true
+  if (haystack === needle || haystack.includes(needle)) return true
   const tag = playerKey(value)
   const queryTag = playerKey(query)
-  return Boolean(tag && queryTag && (tag.includes(queryTag) || queryTag.includes(tag)))
+  if (!tag || !queryTag) return false
+  return tag === queryTag || tag.includes(queryTag)
 }

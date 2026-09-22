@@ -853,9 +853,9 @@ a {
 
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.8rem;
-  margin: 1.2rem 0;
+  margin: 1.2rem 0 0.6rem;
 }
 
 .stat-cards article {
@@ -872,7 +872,8 @@ a {
 }
 
 .stat-cards span,
-.stats-page h2 {
+.stats-page h2,
+.stats-page h3 {
   color: var(--muted);
 }
 
@@ -881,6 +882,124 @@ a {
   font-size: 1rem;
 }
 
+.stats-page h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+}
+
+.stats-note {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.stats-years {
+  margin-bottom: 0.9rem;
+}
+
+.year-bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 0.35rem;
+  align-items: end;
+  min-height: 140px;
+}
+
+.year-bars button {
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  justify-items: center;
+  gap: 0.25rem;
+  min-height: 140px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 10px;
+}
+
+.year-bars button:hover,
+.year-bars button.is-active {
+  background: var(--bg-raise-2);
+}
+
+.year-bar {
+  width: 100%;
+  max-width: 28px;
+  align-self: end;
+  background: var(--purple);
+  border-radius: 8px 8px 2px 2px;
+}
+
+.year-label,
+.year-bars strong {
+  font-size: 0.75rem;
+}
+
+.year-bars strong {
+  color: var(--text);
+}
+
+.stats-focus-head {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  margin-bottom: 0.85rem;
+}
+
+.stats-focus-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.stats-focus-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.stats-open {
+  margin-top: 0.55rem;
+  width: fit-content;
+}
+
+.focus-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.focus-years button,
+.plain-list button,
+.bar-list button {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.focus-years button {
+  width: auto;
+  background: var(--bg-raise-2);
+  padding: 0.28rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.focus-years button:hover,
+.plain-list button:hover,
+.bar-list button:hover,
+.plain-list button.is-active,
+.bar-list button.is-active {
+  background: var(--bg-raise-2);
+}
+
+.stats-samples ul,
 .bar-list,
 .plain-list {
   list-style: none;
@@ -890,16 +1009,51 @@ a {
   gap: 0.55rem;
 }
 
-.bar-list li,
-.plain-list li {
-  display: grid;
-  grid-template-columns: auto 140px 1fr auto;
-  gap: 0.6rem;
-  align-items: center;
+.stats-samples {
+  margin-top: 1rem;
 }
 
-.plain-list li {
-  grid-template-columns: 1fr auto;
+.stats-samples li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.92rem;
+}
+
+.stats-samples span,
+.stats-samples em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.stats-samples a {
+  color: inherit;
+}
+
+.bar-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 140px) 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0.4rem;
+}
+
+.plain-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0.4rem;
+}
+
+.matchup-chips {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.bar-label {
+  min-width: 0;
 }
 
 .bar {
@@ -908,10 +1062,39 @@ a {
   border-radius: 99px;
 }
 
+.bar-count {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .stats-split {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.9rem;
+  margin-top: 0.9rem;
+}
+
+.stats-panel-head {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.stats-search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-raise-2);
+  color: inherit;
+  padding: 0.55rem 0.75rem;
+}
+
+.stats-winrates {
+  margin-bottom: 1rem;
+}
+
+.stats-more {
   margin-top: 0.9rem;
 }
 
@@ -966,8 +1149,8 @@ a {
   .game-list li,
   .game-editor,
   .stats-split,
-  .stat-cards,
-  .bar-list li {
+  .bar-list button,
+  .stats-samples li {
     grid-template-columns: 1fr;
   }
 
