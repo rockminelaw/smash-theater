@@ -2,7 +2,7 @@ import { isOfficialCharacterId } from '../data/characters'
 import type { Match } from '../types'
 import { isOtherGameTitle } from './parseTitle'
 import { canonicalizePlayerNames, normalizePlayerName } from './playerName'
-import { mergeTournamentName, peelEventFromName, prefixesFromTournaments } from './tournamentBleed'
+import { mergeTournamentName, peelEventFromName, prefixesFromTournaments, cleanTournamentName, isJunkTournamentName } from './tournamentBleed'
 
 export { isOfficialCharacterId }
 
@@ -19,10 +19,14 @@ export function sanitizeMatch(match: Match, extraPrefixes: string[] = []): Match
   const player1 = normalizePlayerName(peeled1.rest || match.player1)
   const player2 = normalizePlayerName(peeled2.rest || match.player2)
   if (!player1 || !player2) return null
-  const tournament = mergeTournamentName(
+  const tournamentRaw = mergeTournamentName(
     match.tournament,
     peeled1.tournament || peeled2.tournament,
   )
+  const tournament = cleanTournamentName(tournamentRaw)
+  if (isJunkTournamentName(tournament) && !peeled1.tournament && !peeled2.tournament) {
+    // Keep the match, but don't leave single-letter / chopped tournament tags in filters.
+  }
   let event = match.event
   if (
     /\bsquad\s*strike\b/i.test(rawPlayers) &&
@@ -37,7 +41,8 @@ export function sanitizeMatch(match: Match, extraPrefixes: string[] = []): Match
     (game) => isOfficialCharacterId(game.p1Character) && isOfficialCharacterId(game.p2Character),
   )
   if (!games.length) return null
-  return { ...match, tournament, event, player1, player2, games }
+  const finalTournament = isJunkTournamentName(tournament) ? 'YouTube VOD' : tournament
+  return { ...match, tournament: finalTournament, event, player1, player2, games }
 }
 
 export function sanitizeMatches(matches: Match[]) {

@@ -89,13 +89,37 @@ export function isGenericTournament(name: string) {
   return !name.trim() || GENERIC_TOURNAMENT.test(name.trim())
 }
 
+/** Strip upload tags and dangling brackets/quotes left by round peels like `Event[WQF]`. */
+export function cleanTournamentName(name: string) {
+  let cleaned = name.replace(/\s+/g, ' ').trim()
+  cleaned = cleaned.replace(/^\[\s*partial\s*\]\s*/i, '')
+  cleaned = cleaned.replace(/^\[\s*re-?uploads?\s*\]\s*/i, '')
+  cleaned = cleaned.replace(/^\[\s*re\b[^\]]{0,24}\]\s*/i, '')
+  cleaned = cleaned.replace(/^["'`]+/, '').replace(/["'`]+$/, '')
+  // Unclosed trailing brackets from `Name[Round]` peels.
+  cleaned = cleaned.replace(/[\[（(]+$/, '').trim()
+  cleaned = cleaned.replace(/^[\s\-–—:：|/]+/, '').replace(/[\s\-–—:：|/]+$/, '').trim()
+  return cleaned || name.replace(/\s+/g, ' ').trim()
+}
+
+export function isJunkTournamentName(name: string) {
+  const cleaned = cleanTournamentName(name)
+  if (!cleaned || isGenericTournament(cleaned)) return true
+  if (cleaned.length <= 2) return true
+  if (/^[A-Za-z]$/.test(cleaned)) return true
+  if (/^\[\s*re/i.test(name.trim())) return true
+  return false
+}
+
 export function mergeTournamentName(existing: string, peeled?: string) {
-  if (!peeled) return existing
-  if (isGenericTournament(existing)) return peeled
-  if (/^20\d{2}$/.test(peeled) && existing && !/20\d{2}/.test(existing)) {
-    return `${existing} ${peeled}`
+  if (!peeled) return cleanTournamentName(existing)
+  const left = cleanTournamentName(existing)
+  const right = cleanTournamentName(peeled)
+  if (isGenericTournament(left) || isJunkTournamentName(left)) return right
+  if (/^20\d{2}$/.test(right) && left && !/20\d{2}/.test(left)) {
+    return `${left} ${right}`
   }
-  return existing
+  return left
 }
 
 export function looksLikePlayerRemainder(text: string) {

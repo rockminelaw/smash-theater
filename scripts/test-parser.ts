@@ -891,6 +891,32 @@ const glassBuiOk =
 if (!glassBuiOk) failed += 1
 console.log(glassBuiOk ? 'OK  ' : 'FAIL', 'GlassBui is not truncated by SSBU strip', glassBui)
 
+const maesumaBracket = parseVodTitle(
+  "マエスマ'GRAND WARS#3[WQF] あcola(スティーブ) VS シオン(勇者) #スマブラSP #マエスマ",
+)
+const maesumaBracketOk =
+  maesumaBracket?.tournament === "マエスマ'GRAND WARS#3" &&
+  maesumaBracket.event === 'WQF' &&
+  maesumaBracket.player1 === 'acola'
+if (!maesumaBracketOk) failed += 1
+console.log(maesumaBracketOk ? 'OK  ' : 'FAIL', 'Maesuma bracket rounds do not leave dangling [', maesumaBracket)
+
+const itsukushimaPool = parseVodTitle(
+  'イツクシマ#3[Pool] あcola(スティーブ) VS ありかわ(勇者) #スマブラSP',
+)
+const itsukushimaPoolOk =
+  itsukushimaPool?.tournament === 'イツクシマ#3' && itsukushimaPool.event === 'Pool'
+if (!itsukushimaPoolOk) failed += 1
+console.log(itsukushimaPoolOk ? 'OK  ' : 'FAIL', 'Itsukushima [Pool] peels cleanly', itsukushimaPool)
+
+const genesisTrailing = parseVodTitle(
+  'B-Rice (Isabelle) vs Go1den_Berry (Pit) - Ultimate Singles Pools Winners Semi-Final - Genesis 9',
+)
+const genesisTrailingOk =
+  genesisTrailing?.tournament === 'Genesis 9' && genesisTrailing.player1 === 'B-Rice'
+if (!genesisTrailingOk) failed += 1
+console.log(genesisTrailingOk ? 'OK  ' : 'FAIL', 'trailing Genesis 9 becomes the tournament', genesisTrailing)
+
 if (failed) {
   console.error(`\n${failed} tests failed`)
   process.exit(1)

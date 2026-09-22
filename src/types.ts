@@ -45,6 +45,11 @@ export interface MatchFilters {
   from: string
   to: string
   mode: GameMode
+  /** When true, player1 must equal the filter string (dropdown pick). */
+  exactPlayer1?: boolean
+  exactPlayer2?: boolean
+  /** When true, tag must equal tournament or event (dropdown pick). */
+  exactTag?: boolean
 }
 
 export type RoutePath = '/' | '/add' | '/stats' | '/suggest'

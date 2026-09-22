@@ -5,7 +5,7 @@ type Props = {
   label: string
   value: string
   options: string[]
-  onChange: (value: string) => void
+  onChange: (value: string, meta?: { exact?: boolean }) => void
 }
 
 const ITEM_HEIGHT = 36
@@ -70,7 +70,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
             value={value}
             onChange={(event) => {
               setOpen(true)
-              onChange(event.target.value)
+              onChange(event.target.value, { exact: false })
             }}
             onFocus={() => setOpen(true)}
             onBlur={() => {
@@ -91,7 +91,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
                 ignoreBlur.current = true
               }}
               onClick={() => {
-                onChange('')
+                onChange('', { exact: false })
                 setOpen(false)
                 inputRef.current?.focus()
               }}
@@ -126,7 +126,7 @@ export function SuggestInput({ label, value, options, onChange }: Props) {
                 onMouseDown={(event) => {
                   event.preventDefault()
                   ignoreBlur.current = true
-                  onChange(option)
+                  onChange(option, { exact: true })
                   setOpen(false)
                 }}
               >

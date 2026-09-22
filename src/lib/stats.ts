@@ -178,13 +178,13 @@ export function filtersForFocus(focus: StatsFocus, mode: GameMode): MatchFilters
     case 'matchup':
       return { ...base, char1: focus.a, char2: focus.b }
     case 'player':
-      return { ...base, player1: focus.name }
+      return { ...base, player1: focus.name, exactPlayer1: true }
     case 'tournament':
-      return { ...base, tag: focus.name }
+      return { ...base, tag: focus.name, exactTag: true }
     case 'year':
       return { ...base, from: `${focus.year}-01-01`, to: `${focus.year}-12-31` }
     case 'rivalry':
-      return { ...base, player1: focus.a, player2: focus.b }
+      return { ...base, player1: focus.a, player2: focus.b, exactPlayer1: true, exactPlayer2: true }
     case 'stage':
       return { ...base, stage: focus.id }
   }

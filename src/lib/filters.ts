@@ -20,6 +20,9 @@ export const EMPTY_FILTERS: MatchFilters = {
   from: '',
   to: '',
   mode: 'singles',
+  exactPlayer1: false,
+  exactPlayer2: false,
+  exactTag: false,
 }
 
 export function filtersToHash(filters: MatchFilters) {
@@ -34,13 +37,21 @@ export function filtersToHash(filters: MatchFilters) {
   if (active.from) params.set('from', active.from)
   if (active.to) params.set('to', active.to)
   if (active.mode && active.mode !== 'singles') params.set('mode', active.mode)
+  if (active.exactPlayer1 && active.player1) params.set('ep1', '1')
+  if (active.exactPlayer2 && active.player2) params.set('ep2', '1')
+  if (active.exactTag && active.tag) params.set('etag', '1')
   const query = params.toString()
   return query ? `#/?${query}` : '#/'
 }
 
 function hasFieldFilters(filters: MatchFilters) {
   return (Object.keys(EMPTY_FILTERS) as Array<keyof MatchFilters>).some(
-    (key) => key !== 'mode' && Boolean(filters[key]),
+    (key) =>
+      key !== 'mode' &&
+      key !== 'exactPlayer1' &&
+      key !== 'exactPlayer2' &&
+      key !== 'exactTag' &&
+      Boolean(filters[key]),
   )
 }
 
@@ -49,12 +60,34 @@ export function hasActiveFilters(filters: MatchFilters) {
   return hasFieldFilters(active) || (Boolean(active.mode) && active.mode !== 'singles')
 }
 
+function playerFilterMatch(value: string, query: string, exact: boolean) {
+  if (exact) {
+    const want = query.trim().toLowerCase()
+    if (!want) return false
+    if (value.trim().toLowerCase() === want) return true
+    return teamMembers(value).some((member) => member.trim().toLowerCase() === want)
+  }
+  return namesMatch(value, query)
+}
+
+function tagFilterMatch(match: Match, query: string, exact: boolean) {
+  if (exact) {
+    const want = query.trim().toLowerCase()
+    if (!want) return false
+    return match.tournament.trim().toLowerCase() === want || match.event.trim().toLowerCase() === want
+  }
+  const haystack = `${match.tournament} ${match.event} ${match.notes ?? ''}`
+  return textMatch(haystack, query)
+}
+
 export function filterMatches(matches: Match[], filters: MatchFilters) {
   const active = { ...EMPTY_FILTERS, ...filters }
   if (!hasFieldFilters(active) && active.mode === 'all') return matches
 
   const wantP1 = active.player1.trim()
   const wantP2 = active.player2.trim()
+  const exactP1 = Boolean(active.exactPlayer1)
+  const exactP2 = Boolean(active.exactPlayer2)
 
   return matches.filter((match) => {
     const p1 = match.player1
@@ -64,8 +97,8 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
     let side2: 1 | 2 | null = null
 
     if (wantP1 && wantP2) {
-      const forward = namesMatch(p1, wantP1) && namesMatch(p2, wantP2)
-      const reverse = namesMatch(p1, wantP2) && namesMatch(p2, wantP1)
+      const forward = playerFilterMatch(p1, wantP1, exactP1) && playerFilterMatch(p2, wantP2, exactP2)
+      const reverse = playerFilterMatch(p1, wantP2, exactP2) && playerFilterMatch(p2, wantP1, exactP1)
       if (!forward && !reverse) return false
       if (forward) {
         side1 = 1
@@ -75,12 +108,12 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
         side2 = 1
       }
     } else if (wantP1) {
-      if (namesMatch(p1, wantP1)) side1 = 1
-      else if (namesMatch(p2, wantP1)) side1 = 2
+      if (playerFilterMatch(p1, wantP1, exactP1)) side1 = 1
+      else if (playerFilterMatch(p2, wantP1, exactP1)) side1 = 2
       else return false
     } else if (wantP2) {
-      if (namesMatch(p2, wantP2)) side2 = 2
-      else if (namesMatch(p1, wantP2)) side2 = 1
+      if (playerFilterMatch(p2, wantP2, exactP2)) side2 = 2
+      else if (playerFilterMatch(p1, wantP2, exactP2)) side2 = 1
       else return false
     }
 
@@ -106,10 +139,7 @@ export function filterMatches(matches: Match[], filters: MatchFilters) {
 
     if (active.stage && !stagesFor(match).includes(active.stage)) return false
 
-    if (active.tag) {
-      const haystack = `${match.tournament} ${match.event} ${match.notes ?? ''}`
-      if (!textMatch(haystack, active.tag)) return false
-    }
+    if (active.tag && !tagFilterMatch(match, active.tag, Boolean(active.exactTag))) return false
 
     if (active.from && match.date < active.from) return false
     if (active.to && match.date > active.to) return false

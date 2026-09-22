@@ -29,6 +29,8 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
       player2: filters.player1,
       char1: filters.char2,
       char2: filters.char1,
+      exactPlayer1: filters.exactPlayer2,
+      exactPlayer2: filters.exactPlayer1,
     })
   }
 
@@ -50,7 +52,7 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           label={`${playerLabel} 1`}
           value={filters.player1}
           options={players}
-          onChange={(player1) => update({ player1 })}
+          onChange={(player1, meta) => update({ player1, exactPlayer1: Boolean(meta?.exact) })}
         />
         <button type="button" className="vs-button" onClick={swap} aria-label="Swap players">
           VS
@@ -59,7 +61,7 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           label={`${playerLabel} 2`}
           value={filters.player2}
           options={players}
-          onChange={(player2) => update({ player2 })}
+          onChange={(player2, meta) => update({ player2, exactPlayer2: Boolean(meta?.exact) })}
         />
         <CharacterPicker
           label={teamMode ? 'Team 2 character' : 'Player 2 character'}
@@ -84,7 +86,7 @@ export function FilterBar({ filters, players, tags, dateMin, dateMax, modeCounts
           label="Tournament / tag"
           value={filters.tag}
           options={tags}
-          onChange={(tag) => update({ tag })}
+          onChange={(tag, meta) => update({ tag, exactTag: Boolean(meta?.exact) })}
         />
       </div>
       <div className="filter-row">

@@ -27,6 +27,9 @@ function parseHash() {
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
     mode: isGameMode(modeParam) ? modeParam : 'singles',
+    exactPlayer1: params.get('ep1') === '1',
+    exactPlayer2: params.get('ep2') === '1',
+    exactTag: params.get('etag') === '1',
   }
   return { path: (['/', '/add', '/stats', '/suggest'] as RoutePath[]).includes(path) ? path : '/', filters }
 }
