@@ -69,30 +69,39 @@ function parseSide(side: string) {
     .trim()
   const paren = cleaned.match(/^(.*?)\s*\(([^)]+)\)/)
   if (paren) {
+    const modePeeled = peelModePhrase(paren[1].trim())
     const parsed = parseCharacterListStrict(paren[2])
     return {
-      player: cleanPlayer(paren[1]),
+      player: cleanPlayer(modePeeled.text),
       characters: parsed.ids.filter(isOfficialCharacterId),
       unknown: parsed.unknown,
+      mode: modePeeled.mode,
     }
   }
 
-  const characters = findCharactersInText(cleaned).filter(isOfficialCharacterId)
-  let player = cleaned
+  const modePeeled = peelModePhrase(cleaned)
+  const withoutMode = modePeeled.text
+  const characters = findCharactersInText(withoutMode).filter(isOfficialCharacterId)
+  let player = withoutMode
   if (characters.length > 0) {
-    player = cleaned
+    player = withoutMode
       .replace(/[()]/g, ' ')
       .replace(
-        /ゼロスーツサムス|ポケモントレーナー|ゲーム＆ウォッチ|ゲーム&ウォッチ|キングクルール|パックンフラワー|ドンキーコング|ディディーコング|トゥーンリンク|こどもリンク|ガノンドロフ|アイスクライマーズ?|メタナイト|ミェンミェン|インクリング|ベヨネッタ|セフィロス|ガオガエン|ジョーカー|スティーブ|ピカチュウ|キャプテンファルコン|ファルコン|ヨッシー|ソニック|デデデ|クラウド|カズヤ|カムイ|リュウ|ケン|ピーチ|フォックス|マリオ|リンク|サムス|ピット|シーク|ゼルダ|ファルコ|マルス|ルキナ|ワリオ|オリマー|ルカリオ|ロボット|むらびと|パルテナ|パックマン|ルフレ|シュルク|リドリー|しずえ|ベレス|ベレト|ホムラ|ヒカリ|ソラ|ロゼッタ|プリン|カービィ|クッパ|デイジー|ネス|リュカ|ミュウツー|英雄|勇者|テリー|バンジョー/g,
+        /ゼロスーツサムス|ポケモントレーナー|ゲーム＆ウォッチ|ゲーム&ウォッチ|キングクルール|パックンフラワー|ドンキーコング|ディディーコング|トゥーンリンク|こどもリンク|ガノンドロフ|アイスクライマーズ?|メタナイト|ミェンミェン|インクリング|ベヨネッタ|セフィロス|ガオガエン|ジョーカー|スティーブ|ピカチュウ|キャプテンファルコン|ファルコン|ヨッシー|ソニック|デデデ|クラウド|カズヤ|カムイ|リュウ|ケン|ピーチ|フォックス|マリオ|リンク|サムス|ピット|シーク|ゼルダ|ファルコ|マルス|ルキナ|ワリオ|オリマー|ルカリオ|ロボット|むらびと|パルテナ|パックマン|ルフレ|シュルク|リドリー|しずえ|ベレス|ベレト|ホムラ|ヒカリ|ソラ|ロゼッタ|プリン|カービィ|クッパ|デイジー|ネス|リュカ|ミュウツー|英雄|勇者|テリー|バンジョー|ランダム/g,
         ' ',
       )
       .replace(
-        /\b(pyra\/mythra|pyra mythra|game & watch|zero suit samus|pokemon trainer|pokémon trainer|king k\.? rool|joker|steve|sonic|fox|cloud|sephiroth|mythra|pyra|aegis|kazuya|sora)\b/gi,
+        /\b(pyra\/mythra|pyra mythra|game & watch|zero suit samus|pokemon trainer|pokémon trainer|king k\.? rool|joker|steve|sonic|fox|cloud|sephiroth|mythra|pyra|aegis|kazuya|sora|random)\b/gi,
         ' ',
       )
   }
 
-  return { player: cleanPlayer(player) || cleanPlayer(cleaned), characters, unknown: [] as string[] }
+  return {
+    player: cleanPlayer(player) || cleanPlayer(withoutMode),
+    characters,
+    unknown: [] as string[],
+    mode: modePeeled.mode,
+  }
 }
 
 export function parseVodTitle(title: string): ParsedVod | null {
@@ -141,11 +150,7 @@ export function parseVodTitle(title: string): ParsedVod | null {
 
   const side1 = parseSide(p1Raw)
   const side2 = parseSide(p2Raw)
-  const peeled1 = peelModePhrase(side1.player)
-  const peeled2 = peelModePhrase(side2.player)
-  if (peeled1.text !== side1.player) side1.player = peeled1.text
-  if (peeled2.text !== side2.player) side2.player = peeled2.text
-  const modeHint = peeled1.mode || peeled2.mode
+  const modeHint = side1.mode || side2.mode
   if (modeHint && event === 'Set') event = modeHint
   else if (modeHint && !MODE_TAIL.test(` ${tournament}`) && !MODE_TAIL.test(` ${event}`)) {
     event = `${event} · ${modeHint}`

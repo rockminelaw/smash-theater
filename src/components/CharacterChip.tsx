@@ -7,6 +7,10 @@ type Props = {
   iconOnly?: boolean
 }
 
+export function stockIconSrc(id: string) {
+  return id === 'random' ? '/stock/random.svg' : `/stock/${id}.png`
+}
+
 function chipTextColor(background: string) {
   const hex = background.replace('#', '')
   if (hex.length !== 6) return '#fff'
@@ -31,7 +35,7 @@ export function CharacterChip({ character, size = 'md', winner, iconOnly }: Prop
     >
       <img
         className="chip-icon"
-        src={`/stock/${character.id}.png`}
+        src={stockIconSrc(character.id)}
         alt=""
         width={size === 'sm' ? 16 : 20}
         height={size === 'sm' ? 16 : 20}

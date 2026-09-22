@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import { Header } from './components/Header'
 import { addMatch, deleteMatch, exportArchive, importArchive, loadMatches, mergeImportedMatches, setFileCatalog } from './lib/storage'
 import { AddPage } from './pages/AddPage'
@@ -93,6 +94,7 @@ export default function App() {
   return (
     <div className="app">
       <Header path={path} />
+      <Analytics />
       {loading ? (
         <main className="page loading-page">
           <p className="loading-banner">Loading archive…</p>

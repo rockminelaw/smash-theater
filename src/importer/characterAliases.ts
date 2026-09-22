@@ -71,6 +71,7 @@ export const CHARACTER_ALIASES: Array<[string, string]> = [
   ['joker', 'joker'],
   ['steve', 'steve'],
   ['sora', 'sora'],
+  ['random', 'random'],
   ['mythra', 'pyra_mythra'],
   ['pyra', 'pyra_mythra'],
   ['aegis', 'pyra_mythra'],
@@ -129,6 +130,7 @@ export const CHARACTER_ALIASES: Array<[string, string]> = [
   ['dk', 'donkey_kong'],
 
   // Japanese names
+  ['ランダム', 'random'],
   ['ゼロスーツサムス', 'zero_suit_samus'],
   ['ポケモントレーナー', 'pokemon_trainer'],
   ['ドクターマリオ', 'dr_mario'],

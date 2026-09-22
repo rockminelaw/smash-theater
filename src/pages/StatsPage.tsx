@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCharacter } from '../data/characters'
 import { getStage } from '../data/stages'
-import { CharacterChip } from '../components/CharacterChip'
+import { CharacterChip, stockIconSrc } from '../components/CharacterChip'
 import { ModeTabs } from '../components/ModeTabs'
 import { filtersToHash } from '../lib/filters'
 import { formatDate } from '../lib/format'
@@ -576,7 +576,7 @@ function StockArt({ id }: { id: string }) {
   return (
     <img
       className="heat-stock"
-      src={`/stock/${id}.png`}
+      src={stockIconSrc(id)}
       alt=""
       width={40}
       height={40}

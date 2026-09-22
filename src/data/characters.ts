@@ -87,6 +87,7 @@ export const CHARACTERS: Character[] = [
   { id: 'pyra_mythra', name: 'Pyra/Mythra', short: 'AEG', color: '#ff7043' },
   { id: 'kazuya', name: 'Kazuya', short: 'KAZ', color: '#c62828' },
   { id: 'sora', name: 'Sora', short: 'SRA', color: '#42a5f5' },
+  { id: 'random', name: 'Random', short: 'RND', color: '#78909c' },
 ]
 
 export const CHARACTER_MAP = Object.fromEntries(

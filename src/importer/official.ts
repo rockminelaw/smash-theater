@@ -15,6 +15,7 @@ export function isUltimateEraDate(date: string) {
 export function sanitizeMatch(match: Match, extraPrefixes: string[] = []): Match | null {
   const peeled1 = peelEventFromName(match.player1, extraPrefixes)
   const peeled2 = peelEventFromName(match.player2, extraPrefixes)
+  const rawPlayers = `${peeled1.rest || match.player1} ${peeled2.rest || match.player2}`
   const player1 = normalizePlayerName(peeled1.rest || match.player1)
   const player2 = normalizePlayerName(peeled2.rest || match.player2)
   if (!player1 || !player2) return null
@@ -22,14 +23,21 @@ export function sanitizeMatch(match: Match, extraPrefixes: string[] = []): Match
     match.tournament,
     peeled1.tournament || peeled2.tournament,
   )
-  const blob = `${tournament} ${match.event} ${player1} ${player2} ${match.notes ?? ''}`
+  let event = match.event
+  if (
+    /\bsquad\s*strike\b/i.test(rawPlayers) &&
+    !/\bsquad\s*strike\b/i.test(`${tournament} ${event} ${match.notes ?? ''}`)
+  ) {
+    event = event && !/^(set|unknown event)$/i.test(event) ? `${event} · Squad Strike` : 'Squad Strike'
+  }
+  const blob = `${tournament} ${event} ${player1} ${player2} ${match.notes ?? ''}`
   if (isOtherGameTitle(blob)) return null
   if (!isUltimateEraDate(match.date)) return null
   const games = match.games.filter(
     (game) => isOfficialCharacterId(game.p1Character) && isOfficialCharacterId(game.p2Character),
   )
   if (!games.length) return null
-  return { ...match, tournament, player1, player2, games }
+  return { ...match, tournament, event, player1, player2, games }
 }
 
 export function sanitizeMatches(matches: Match[]) {

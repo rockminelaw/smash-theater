@@ -80,6 +80,10 @@ const TEAM_PREFIXES = [
   'fc',
   'lh',
   'ktp',
+  'yikes!',
+  'yikes',
+  'smu5h',
+  'mp',
 ].sort((a, b) => b.length - a.length)
 
 function aliasPattern(alias: string) {
@@ -120,7 +124,10 @@ function stripTeamPrefixes(raw: string) {
     const lower = current.toLowerCase()
     for (const team of TEAM_PREFIXES) {
       if (lower === team) return current
-      if (lower.startsWith(`${team} `) || lower.startsWith(`${team}/`) || lower.startsWith(`${team}／`)) {
+      const spaced = lower.startsWith(`${team} `) || lower.startsWith(`${team}/`) || lower.startsWith(`${team}／`)
+      // Allow "Yikes!Atreus" when the prefix already ends with punctuation.
+      const glued = /[!]$/.test(team) && lower.startsWith(team) && lower.length > team.length
+      if (spaced || glued) {
         current = current.slice(team.length).replace(/^[\s/／]+/, '')
         changed = true
         break
@@ -128,6 +135,15 @@ function stripTeamPrefixes(raw: string) {
     }
   }
   return current
+}
+
+function stripModeNameNoise(raw: string) {
+  return raw
+    .replace(/\(\s*the\s+squad\s*\)/gi, ' ')
+    .replace(/\bthe\s+squad\b/gi, ' ')
+    .replace(/\bsquad\s*strike\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function takeLastDashTag(raw: string) {
@@ -259,8 +275,10 @@ export function normalizePlayerName(raw: string) {
   name = takeLastDashTag(name)
   name = takeSponsorTag(name)
   name = stripTeamPrefixes(name)
+  name = stripModeNameNoise(name)
   const withoutChars = stripCharacterNames(name)
   name = withoutChars || name
+  name = stripModeNameNoise(name)
   name = stripOuterJunk(name.replace(/^[\s\-–—|/／]+/, '').replace(/[\s\-–—|/／]+$/, ''))
   name = stripEventBleed(name)
   name = stripOuterJunk(name)

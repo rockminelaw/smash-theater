@@ -15,6 +15,7 @@
     "approve-tip": "tsx scripts/approve-tip.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
