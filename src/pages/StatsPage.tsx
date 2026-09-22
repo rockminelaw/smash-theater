@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCharacter } from '../data/characters'
 import { getStage } from '../data/stages'
 import { CharacterChip } from '../components/CharacterChip'
@@ -24,8 +24,9 @@ type Props = {
   matches: Match[]
 }
 
-const LIST_SIZE = 20
-const LIST_MORE = 50
+const ROW_HEIGHT = 46
+const SHARE_TAKE = 7
+const SHARE_COLORS = ['#d4a3e6', '#b56dcf', '#9a4fb8', '#7d3d96', '#c58fdc', '#8a48a6', '#6b3480']
 
 function characterName(id: string) {
   return getCharacter(id)?.name ?? id
@@ -67,13 +68,34 @@ function formatRate(row: RankedRow) {
   return `${rate}% (${wins}–${losses})`
 }
 
+function rowsForTab(tab: StatsTab, stats: ReturnType<typeof computeArchiveStats>) {
+  if (tab === 'characters') return stats.characters
+  if (tab === 'matchups') return stats.matchups
+  if (tab === 'players') return stats.playersRanked
+  if (tab === 'rivalries') return stats.rivalries
+  if (tab === 'tournaments') return stats.tournamentsRanked
+  return stats.stages
+}
+
+function tabNoun(tab: StatsTab, count: number) {
+  const labels: Record<StatsTab, [string, string]> = {
+    characters: ['character', 'characters'],
+    matchups: ['matchup', 'matchups'],
+    players: ['player', 'players'],
+    rivalries: ['rivalry', 'rivalries'],
+    tournaments: ['tournament', 'tournaments'],
+    stages: ['stage', 'stages'],
+  }
+  const [one, many] = labels[tab]
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`
+}
+
 export function StatsPage({ matches }: Props) {
   const initial = useMemo(() => parseStatsHash(window.location.hash), [])
   const [mode, setMode] = useState<GameMode>(initial.mode)
   const [tab, setTab] = useState<StatsTab>(initial.tab)
   const [focus, setFocus] = useState<StatsFocus | null>(initial.focus)
   const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     const onHash = () => {
@@ -110,49 +132,18 @@ export function StatsPage({ matches }: Props) {
     setFocus(next)
     if (next.type !== 'year') setTab(tabForFocus(next))
     setQuery('')
-    setExpanded(false)
   }
 
   const openArchive = (next: StatsFocus) => {
     window.location.hash = filtersToHash(filtersForFocus(next, mode))
   }
 
+  const tabRows = rowsForTab(tab, stats)
   const needle = query.trim().toLowerCase()
-  const limit = expanded || needle ? LIST_MORE : LIST_SIZE
-
-  const ranked = (() => {
-    const matchesQuery = (label: string) => !needle || label.toLowerCase().includes(needle)
-    if (tab === 'characters') {
-      return stats.characters.filter((row) => matchesQuery(characterName(row.key))).slice(0, limit)
-    }
-    if (tab === 'matchups') {
-      return stats.matchups.filter((row) => matchesQuery(matchupLabel(row))).slice(0, limit)
-    }
-    if (tab === 'players') {
-      return stats.playersRanked.filter((row) => matchesQuery(row.a ?? row.key)).slice(0, limit)
-    }
-    if (tab === 'rivalries') {
-      return stats.rivalries.filter((row) => matchesQuery(`${row.a} vs ${row.b}`)).slice(0, limit)
-    }
-    if (tab === 'tournaments') {
-      return stats.tournamentsRanked.filter((row) => matchesQuery(row.key)).slice(0, limit)
-    }
-    return stats.stages.filter((row) => matchesQuery(stageName(row.key))).slice(0, limit)
-  })()
-
-  const maxRank = ranked[0]?.count ?? 1
-  const totalForTab =
-    tab === 'characters'
-      ? stats.characters.length
-      : tab === 'matchups'
-        ? stats.matchups.length
-        : tab === 'players'
-          ? stats.playersRanked.length
-          : tab === 'rivalries'
-            ? stats.rivalries.length
-            : tab === 'tournaments'
-              ? stats.tournamentsRanked.length
-              : stats.stages.length
+  const ranked = needle
+    ? tabRows.filter((row) => rowLabel(tab, row).toLowerCase().includes(needle))
+    : tabRows
+  const maxRank = tabRows[0]?.count ?? 1
 
   return (
     <main className="page stats-page">
@@ -167,7 +158,6 @@ export function StatsPage({ matches }: Props) {
         onChange={(next) => {
           setMode(next)
           setFocus(null)
-          setExpanded(false)
         }}
       />
 
@@ -213,7 +203,12 @@ export function StatsPage({ matches }: Props) {
                 className={focus?.type === 'year' && focus.year === row.key ? 'is-active' : ''}
                 onClick={() => openFocus({ type: 'year', year: row.key })}
               >
-                <span className="year-bar" style={{ height: `${Math.max(8, (row.count / maxYear) * 100)}%` }} />
+                <span className="year-bar-track">
+                  <span
+                    className="year-bar"
+                    style={{ height: `${Math.max(2, (row.count / maxYear) * 100)}%` }}
+                  />
+                </span>
                 <span className="year-label">{row.key}</span>
                 <strong>{row.count.toLocaleString()}</strong>
               </button>
@@ -326,7 +321,6 @@ export function StatsPage({ matches }: Props) {
                 onClick={() => {
                   setTab(item.id)
                   setQuery('')
-                  setExpanded(false)
                 }}
               >
                 {item.label}
@@ -337,10 +331,7 @@ export function StatsPage({ matches }: Props) {
             <span className="sr-only">Filter this list</span>
             <input
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setExpanded(true)
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder={
                 tab === 'characters'
                   ? 'Search characters'
@@ -381,12 +372,15 @@ export function StatsPage({ matches }: Props) {
               Only {stats.scoredSets.toLocaleString()} VODs have a winner in the archive, so treat this as a sample,
               not a ranking.
             </p>
-            <ul className="plain-list">
+            <ul className="stats-rank-list stats-rank-list-static stats-rank-list-plain">
               {stats.scoredPlayers.slice(0, 8).map((row) => (
                 <li key={row.key}>
                   <button type="button" onClick={() => openFocus({ type: 'player', name: row.a ?? row.key })}>
-                    <span>{row.a ?? row.key}</span>
-                    <strong>{formatRate(row)}</strong>
+                    <span className="bar-label">{row.a ?? row.key}</span>
+                    <span className="bar-track">
+                      <span className="bar" style={{ width: `${Math.round((row.winRate ?? 0) * 100)}%` }} />
+                    </span>
+                    <span className="bar-count">{formatRate(row)}</span>
                   </button>
                 </li>
               ))}
@@ -397,43 +391,21 @@ export function StatsPage({ matches }: Props) {
         {ranked.length === 0 ? (
           <p className="empty-inline">No results in this slice of the archive.</p>
         ) : (
-          <ul className={tab === 'characters' || tab === 'matchups' ? 'bar-list' : 'plain-list'}>
-            {ranked.map((row) => {
-              const active =
-                (focus?.type === 'character' && focus.id === row.key) ||
-                (focus?.type === 'matchup' && pairEquals(focus, row)) ||
-                (focus?.type === 'player' && (row.a === focus.name || row.key === focus.name)) ||
-                (focus?.type === 'rivalry' && rivalryEquals(focus, row)) ||
-                (focus?.type === 'tournament' && focus.name === row.key) ||
-                (focus?.type === 'stage' && focus.id === row.key)
-              return (
-                <li key={row.key}>
-                  <button type="button" className={active ? 'is-active' : ''} onClick={() => pickRow(tab, row, openFocus)}>
-                    {tab === 'characters' && <CharacterChip character={getCharacter(row.key)} size="sm" />}
-                    {tab === 'matchups' && (
-                      <span className="matchup-chips">
-                        <CharacterChip character={getCharacter(row.a ?? '')} size="sm" />
-                        {row.a !== row.b && <CharacterChip character={getCharacter(row.b ?? '')} size="sm" />}
-                      </span>
-                    )}
-                    <span className="bar-label">{rowLabel(tab, row)}</span>
-                    {(tab === 'characters' || tab === 'matchups') && (
-                      <span className="bar" style={{ width: `${(row.count / maxRank) * 100}%` }} />
-                    )}
-                    <span className="bar-count">
-                      {row.count.toLocaleString()}
-                      {row.extra && row.extra !== row.count ? ` · ${row.extra.toLocaleString()} games` : ''}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        {!needle && totalForTab > LIST_SIZE && (
-          <button type="button" className="secondary-btn stats-more" onClick={() => setExpanded((value) => !value)}>
-            {expanded ? 'Show less' : `Show more (${totalForTab.toLocaleString()})`}
-          </button>
+          <>
+            <ShareChart rows={ranked} tab={tab} onPick={(row) => pickRow(tab, row, openFocus)} />
+            <div className="stats-list-head">
+              <h3>All {tabNoun(tab, ranked.length)}</h3>
+              <span>Scroll the list to see every row</span>
+            </div>
+            <VirtualRankList
+              rows={ranked}
+              tab={tab}
+              maxRank={maxRank}
+              focus={focus}
+              resetKey={`${tab}|${mode}|${query}`}
+              onPick={(row) => pickRow(tab, row, openFocus)}
+            />
+          </>
         )}
       </section>
     </main>
@@ -466,6 +438,180 @@ function pickRow(tab: StatsTab, row: RankedRow, openFocus: (focus: StatsFocus) =
   else openFocus({ type: 'stage', id: row.key })
 }
 
+function rowIsActive(row: RankedRow, focus: StatsFocus | null) {
+  if (!focus) return false
+  return (
+    (focus.type === 'character' && focus.id === row.key) ||
+    (focus.type === 'matchup' && pairEquals(focus, row)) ||
+    (focus.type === 'player' && (row.a === focus.name || row.key === focus.name)) ||
+    (focus.type === 'rivalry' && rivalryEquals(focus, row)) ||
+    (focus.type === 'tournament' && focus.name === row.key) ||
+    (focus.type === 'stage' && focus.id === row.key)
+  )
+}
+
+function VirtualRankList({
+  rows,
+  tab,
+  maxRank,
+  focus,
+  resetKey,
+  onPick,
+}: {
+  rows: RankedRow[]
+  tab: StatsTab
+  maxRank: number
+  focus: StatsFocus | null
+  resetKey: string
+  onPick: (row: RankedRow) => void
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportH, setViewportH] = useState(560)
+
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 })
+    setScrollTop(0)
+  }, [resetKey])
+
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const sync = () => setViewportH(el.clientHeight)
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [rows.length, resetKey])
+
+  const overscan = 12
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan)
+  const end = Math.min(rows.length, start + Math.ceil(viewportH / ROW_HEIGHT) + overscan * 2)
+
+  return (
+    <div
+      className="stats-scroll"
+      ref={scrollerRef}
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      tabIndex={0}
+      role="region"
+      aria-label="Full ranking"
+    >
+      <ul className="stats-rank-list" style={{ height: rows.length * ROW_HEIGHT }}>
+        {rows.slice(start, end).map((row, index) => (
+          <li
+            key={row.key}
+            className="is-virtual"
+            style={{ top: (start + index) * ROW_HEIGHT, height: ROW_HEIGHT }}
+          >
+            <button
+              type="button"
+              className={rowIsActive(row, focus) ? 'is-active' : ''}
+              onClick={() => onPick(row)}
+            >
+              <span className="bar-lead">
+                {tab === 'characters' && <CharacterChip character={getCharacter(row.key)} size="sm" />}
+                {tab === 'matchups' && (
+                  <span className="matchup-chips">
+                    <CharacterChip character={getCharacter(row.a ?? '')} size="sm" />
+                    {row.a !== row.b && <CharacterChip character={getCharacter(row.b ?? '')} size="sm" />}
+                  </span>
+                )}
+              </span>
+              <span className="bar-label">{rowLabel(tab, row)}</span>
+              <span className="bar-track">
+                <span className="bar" style={{ width: `${(row.count / maxRank) * 100}%` }} />
+              </span>
+              <span className="bar-count">
+                {row.count.toLocaleString()}
+                {row.extra && row.extra !== row.count ? ` · ${row.extra.toLocaleString()} games` : ''}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ShareChart({
+  rows,
+  tab,
+  onPick,
+}: {
+  rows: RankedRow[]
+  tab: StatsTab
+  onPick: (row: RankedRow) => void
+}) {
+  const top = rows.slice(0, SHARE_TAKE)
+  const rest = rows.slice(SHARE_TAKE).reduce((sum, row) => sum + row.count, 0)
+  const topTotal = top.reduce((sum, row) => sum + row.count, 0)
+  const total = topTotal + rest
+  if (total <= 0 || top.length === 0) return null
+  const max = top[0]?.count ?? 1
+  const restShare = Math.round((rest / total) * 100)
+
+  return (
+    <div className="stats-viz">
+      <div className="stats-viz-head">
+        <h3>Top {top.length} in this ranking</h3>
+        <span>{restShare > 0 ? `${restShare}% sits outside this group` : 'Share of the full list'}</span>
+      </div>
+      <div className="share-strip" role="img" aria-label={`Top ${top.length} ${tab}`}>
+        {top.map((row, index) => (
+          <button
+            key={row.key}
+            type="button"
+            title={`${rowLabel(tab, row)} · ${row.count.toLocaleString()} (${Math.round((row.count / topTotal) * 100)}% of the top ${top.length})`}
+            style={{
+              flexGrow: row.count,
+              flexShrink: 1,
+              flexBasis: 0,
+              background: SHARE_COLORS[index % SHARE_COLORS.length],
+            }}
+            onClick={() => onPick(row)}
+          />
+        ))}
+      </div>
+      <ul className="share-legend">
+        {top.map((row, index) => (
+          <li key={row.key}>
+            <button type="button" onClick={() => onPick(row)}>
+              <i style={{ background: SHARE_COLORS[index % SHARE_COLORS.length] }} />
+              <span>{rowLabel(tab, row)}</span>
+              <strong>{Math.round((row.count / topTotal) * 100)}%</strong>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <svg className="stats-top-chart" viewBox={`0 0 640 ${top.length * 28}`} role="img" aria-label={`Top ${top.length} ${tab}`}>
+        {top.map((row, index) => {
+          const y = index * 28
+          const width = Math.max(4, (row.count / max) * 430)
+          return (
+            <g key={row.key} className="stats-top-row" onClick={() => onPick(row)}>
+              <title>{`${rowLabel(tab, row)} · ${row.count.toLocaleString()}`}</title>
+              <rect x="0" y={y} width="640" height="28" fill="transparent" />
+              <text x={158} y={y + 18} textAnchor="end">
+                {truncateLabel(rowLabel(tab, row), 22)}
+              </text>
+              <rect className="stats-top-track" x={168} y={y + 8} width={430} height={10} rx={5} />
+              <rect className="stats-top-bar" x={168} y={y + 8} width={width} height={10} rx={5} />
+              <text className="stats-top-count" x={604} y={y + 18} textAnchor="end">
+                {row.count.toLocaleString()}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function truncateLabel(value: string, max: number) {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value
+}
+
 function FocusList({
   title,
   rows,
@@ -477,15 +623,19 @@ function FocusList({
   label: (row: RankedRow) => string
   onPick: (row: RankedRow) => void
 }) {
+  const max = rows[0]?.count ?? 1
   return (
     <div>
       <h3>{title}</h3>
-      <ul className="plain-list">
+      <ul className="stats-rank-list stats-rank-list-static stats-rank-list-plain">
         {rows.map((row) => (
           <li key={row.key}>
             <button type="button" onClick={() => onPick(row)}>
-              <span>{label(row)}</span>
-              <strong>{row.count.toLocaleString()}</strong>
+              <span className="bar-label">{label(row)}</span>
+              <span className="bar-track">
+                <span className="bar" style={{ width: `${(row.count / max) * 100}%` }} />
+              </span>
+              <span className="bar-count">{row.count.toLocaleString()}</span>
             </button>
           </li>
         ))}

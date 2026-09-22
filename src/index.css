@@ -902,16 +902,14 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
   gap: 0.35rem;
-  align-items: end;
-  min-height: 140px;
+  align-items: stretch;
 }
 
 .year-bars button {
-  display: grid;
-  grid-template-rows: 1fr auto auto;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.25rem;
-  min-height: 140px;
   background: transparent;
   border: 0;
   color: inherit;
@@ -925,10 +923,17 @@ a {
   background: var(--bg-raise-2);
 }
 
-.year-bar {
+.year-bar-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
   width: 100%;
-  max-width: 28px;
-  align-self: end;
+  height: 120px;
+}
+
+.year-bar {
+  width: 22px;
+  max-width: 100%;
   background: var(--purple);
   border-radius: 8px 8px 2px 2px;
 }
@@ -974,7 +979,8 @@ a {
 
 .focus-years button,
 .plain-list button,
-.bar-list button {
+.bar-list button,
+.stats-rank-list button {
   width: 100%;
   background: transparent;
   border: 0;
@@ -994,8 +1000,10 @@ a {
 .focus-years button:hover,
 .plain-list button:hover,
 .bar-list button:hover,
+.stats-rank-list button:hover,
 .plain-list button.is-active,
-.bar-list button.is-active {
+.bar-list button.is-active,
+.stats-rank-list button.is-active {
   background: var(--bg-raise-2);
 }
 
@@ -1052,12 +1060,199 @@ a {
   gap: 0.25rem;
 }
 
+.stats-viz {
+  margin: 0 0 1.1rem;
+}
+
+.stats-viz-head,
+.stats-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.stats-viz-head h3,
+.stats-list-head h3 {
+  margin: 0;
+}
+
+.stats-viz-head span,
+.stats-list-head span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.share-strip {
+  display: flex;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-raise-2);
+}
+
+.share-strip button,
+.share-rest {
+  min-width: 2px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.share-rest,
+.share-rest-swatch {
+  background: #4a4a54;
+}
+
+.share-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  list-style: none;
+  margin: 0.55rem 0 0.85rem;
+  padding: 0;
+}
+
+.share-legend button,
+.share-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.share-legend span {
+  cursor: default;
+}
+
+.share-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  flex: none;
+}
+
+.share-legend strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stats-top-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.stats-top-row {
+  cursor: pointer;
+}
+
+.stats-top-row:hover .stats-top-bar {
+  fill: var(--purple-dark);
+}
+
+.stats-top-chart text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.stats-top-count {
+  fill: var(--text);
+}
+
+.stats-top-track {
+  fill: var(--bg-raise-2);
+}
+
+.stats-top-bar {
+  fill: var(--purple);
+}
+
+.stats-scroll {
+  max-height: min(62vh, 720px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #8d8d98 transparent;
+}
+
+.stats-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stats-scroll::-webkit-scrollbar-thumb {
+  background: #8d8d98;
+  border-radius: 99px;
+}
+
+.stats-rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.stats-rank-list-static {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.stats-rank-list li.is-virtual {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.stats-rank-list button {
+  display: grid;
+  grid-template-columns: 5rem 12rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  min-height: 44px;
+  height: 100%;
+  padding: 0 0.45rem;
+}
+
+.stats-rank-list-plain button {
+  grid-template-columns: 8.5rem minmax(0, 1fr) auto;
+}
+
+.bar-lead {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 22px;
+}
+
 .bar-label {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  display: block;
+  height: 8px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-raise-2);
 }
 
 .bar {
-  height: 8px;
+  display: block;
+  height: 100%;
+  min-width: 2px;
   background: var(--purple);
   border-radius: 99px;
 }
@@ -1066,6 +1261,7 @@ a {
   white-space: nowrap;
   color: var(--muted);
   font-size: 0.85rem;
+  text-align: right;
 }
 
 .stats-split {
@@ -1149,9 +1345,17 @@ a {
   .game-list li,
   .game-editor,
   .stats-split,
-  .bar-list button,
   .stats-samples li {
     grid-template-columns: 1fr;
+  }
+
+  .stats-rank-list button {
+    grid-template-columns: 3rem 7.25rem minmax(0, 1fr) auto;
+    gap: 0.4rem;
+  }
+
+  .stats-rank-list-plain button {
+    grid-template-columns: 7.25rem minmax(0, 1fr) auto;
   }
 
   .match-date,
