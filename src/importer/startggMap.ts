@@ -714,21 +714,59 @@ export function mapStartggSet(match: Match, set: StartggSet): MappedStartggSet |
   return { flipped, score, games }
 }
 
+function titleGameChars(match: Match): { p1Character?: string; p2Character?: string } | null {
+  const game = match.games.find(
+    (entry) => isOfficialCharacterId(entry.p1Character) && isOfficialCharacterId(entry.p2Character),
+  )
+  return game ? { p1Character: game.p1Character, p2Character: game.p2Character } : null
+}
+
+/** True when start.gg's first game disagrees with the YouTube title's characters. */
+export function startggConflictsWithTitle(
+  match: Match,
+  mapped: MappedStartggSet,
+): boolean {
+  const title = titleGameChars(match)
+  if (!title) return false
+  const incoming = mapped.games.find(
+    (game) =>
+      (game.p1Character && isOfficialCharacterId(game.p1Character)) ||
+      (game.p2Character && isOfficialCharacterId(game.p2Character)),
+  )
+  if (!incoming) return false
+  if (incoming.p1Character && isOfficialCharacterId(incoming.p1Character) && incoming.p1Character !== title.p1Character) {
+    return true
+  }
+  if (incoming.p2Character && isOfficialCharacterId(incoming.p2Character) && incoming.p2Character !== title.p2Character) {
+    return true
+  }
+  return false
+}
+
 export function applyStartggSet(match: Match, mapped: MappedStartggSet): Match {
   const template = match.games[0]
   if (!template) return match
+  const title = titleGameChars(match)
+  const trustTitleChars = Boolean(title && startggConflictsWithTitle(match, mapped))
   const count = Math.max(match.games.length, mapped.games.length)
   const games: Game[] = Array.from({ length: count }, (_, index) => {
     const existing = match.games[index]
     const incoming = mapped.games[index]
     const fallback = existing ?? { ...template, winner: undefined, stage: undefined }
+    const pickChar = (side: 'p1Character' | 'p2Character') => {
+      const fromTitle = (trustTitleChars ? title?.[side] : undefined) || fallback[side]
+      const fromStartgg = incoming?.[side]
+      // When start.gg selections conflict with the VOD title, keep the title characters
+      // (start.gg often attaches the wrong set's picks). Otherwise prefer start.gg so
+      // mid-set switches still enrich titles that only listed one character each.
+      if (trustTitleChars && fromTitle && isOfficialCharacterId(fromTitle)) return fromTitle
+      if (!trustTitleChars && fromStartgg && isOfficialCharacterId(fromStartgg)) return fromStartgg
+      if (fromTitle && isOfficialCharacterId(fromTitle)) return fromTitle
+      return fromTitle
+    }
     return {
-      p1Character:
-        (incoming?.p1Character && isOfficialCharacterId(incoming.p1Character) ? incoming.p1Character : undefined) ||
-        fallback.p1Character,
-      p2Character:
-        (incoming?.p2Character && isOfficialCharacterId(incoming.p2Character) ? incoming.p2Character : undefined) ||
-        fallback.p2Character,
+      p1Character: pickChar('p1Character'),
+      p2Character: pickChar('p2Character'),
       stage: existing?.stage || incoming?.stage,
       winner: existing?.winner || incoming?.winner,
     }

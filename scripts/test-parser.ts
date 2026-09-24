@@ -309,6 +309,65 @@ const zeroScoreOk = zeroScoreReplaced.setScore?.p1 === 3 && zeroScoreReplaced.se
 if (!zeroScoreOk) failed += 1
 console.log(zeroScoreOk ? 'OK  ' : 'FAIL', 'replace placeholder 0-0 scores with start.gg results')
 
+const keepTitleChars = applyStartggSet(
+  sampleMatch({
+    player1: 'AlanDiss',
+    player2: 'Spargo',
+    games: [{ p1Character: 'snake', p2Character: 'cloud' }],
+  }),
+  {
+    flipped: false,
+    score: { p1: 3, p2: 0 },
+    games: [
+      { p1Character: 'kazuya', p2Character: 'snake', winner: 1 },
+      { p1Character: 'kazuya', p2Character: 'ken', winner: 1 },
+      { p1Character: 'kazuya', p2Character: 'ken', winner: 1 },
+    ],
+  },
+)
+const keepTitleCharsOk =
+  keepTitleChars.games.every((game) => game.p1Character === 'snake' && game.p2Character === 'cloud') &&
+  keepTitleChars.setScore?.p1 === 3 &&
+  keepTitleChars.games[0]?.winner === 1
+if (!keepTitleCharsOk) failed += 1
+console.log(keepTitleCharsOk ? 'OK  ' : 'FAIL', 'keep YouTube title characters over wrong start.gg selections', keepTitleChars.games)
+
+const keepStartggSwitches = applyStartggSet(
+  sampleMatch({
+    games: [{ p1Character: 'byleth', p2Character: 'cloud' }],
+  }),
+  {
+    flipped: false,
+    score: { p1: 1, p2: 1 },
+    games: [
+      { p1Character: 'byleth', p2Character: 'cloud', winner: 1 },
+      { p1Character: 'joker', p2Character: 'pyra_mythra', winner: 2 },
+    ],
+  },
+)
+const keepStartggSwitchesOk =
+  keepStartggSwitches.games[0]?.p1Character === 'byleth' &&
+  keepStartggSwitches.games[0]?.p2Character === 'cloud' &&
+  keepStartggSwitches.games[1]?.p1Character === 'joker' &&
+  keepStartggSwitches.games[1]?.p2Character === 'pyra_mythra'
+if (!keepStartggSwitchesOk) failed += 1
+console.log(keepStartggSwitchesOk ? 'OK  ' : 'FAIL', 'keep start.gg mid-set switches when they agree with the title')
+
+const fillMissingChars = applyStartggSet(
+  sampleMatch({
+    games: [{ p1Character: '', p2Character: '' }],
+  }),
+  {
+    flipped: false,
+    score: { p1: 3, p2: 1 },
+    games: [{ p1Character: 'joker', p2Character: 'wario', stage: 'battlefield', winner: 1 }],
+  },
+)
+const fillMissingCharsOk =
+  fillMissingChars.games[0]?.p1Character === 'joker' && fillMissingChars.games[0]?.p2Character === 'wario'
+if (!fillMissingCharsOk) failed += 1
+console.log(fillMissingCharsOk ? 'OK  ' : 'FAIL', 'still fill characters from start.gg when the title had none')
+
 const goml = pickTournament('GOML 2026', [
   { name: 'Genesis X4', slug: 'genesis-x4' },
   { name: 'Get On My Level 2026 Canadian Fighting Game Championships', slug: 'get-on-my-level-2026-canadian-fighting-game-championships' },
